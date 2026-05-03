@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 partial class MainPanel
 {
@@ -17,7 +18,7 @@ partial class MainPanel
         public Border Card;
         public Border Details;
         public Border Expander;
-        public TextBlock Chevron;
+        public Path Chevron;
     }
 
     string _expandedSettingsKey;
@@ -80,16 +81,22 @@ partial class MainPanel
             Margin = new Thickness(0, 0, 14, 0),
             ToolTip = Loc.T("settings.details.toggle")
         };
-        var chevron = T("\u2304", 16, TXT2, true);
-        chevron.HorizontalAlignment = HorizontalAlignment.Center;
-        chevron.VerticalAlignment = VerticalAlignment.Center;
-        expand.Child = chevron;
+        var chevron = MakeSettingsChevron(false);
+        var chevronHost = new Grid
+        {
+            Width = 16,
+            Height = 16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        chevronHost.Children.Add(chevron);
+        expand.Child = chevronHost;
         expand.PreviewMouseLeftButtonDown += delegate(object s, MouseButtonEventArgs e)
         {
             e.Handled = true;
             ToggleSettingsDetail(key);
         };
-        expand.MouseEnter += delegate { expand.Background = B(24, 255, 255, 255); chevron.Foreground = TXT; };
+        expand.MouseEnter += delegate { expand.Background = B(24, 255, 255, 255); chevron.Stroke = TXT; };
         expand.MouseLeave += delegate { ApplySettingsDetailExpansion(); };
         Grid.SetColumn(expand, 1);
         top.Children.Add(expand);
@@ -132,6 +139,29 @@ partial class MainPanel
         stack.Children.Add(BuildRuleSection(Loc.T("settings.details.allowed"), "\u2713", GREEN, allowed));
         box.Child = stack;
         return box;
+    }
+
+    Path MakeSettingsChevron(bool open)
+    {
+        return new Path
+        {
+            Data = SettingsChevronGeometry(open),
+            Width = 16,
+            Height = 16,
+            Stroke = TXT2,
+            StrokeThickness = 2.2,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            SnapsToDevicePixels = true
+        };
+    }
+
+    Geometry SettingsChevronGeometry(bool open)
+    {
+        return Geometry.Parse(open ? "M 3 10 L 8 5 L 13 10" : "M 3 6 L 8 11 L 13 6");
     }
 
     FrameworkElement BuildRuleSection(string title, string marker, SolidColorBrush accent, IEnumerable<string> items)
@@ -177,8 +207,8 @@ partial class MainPanel
         {
             bool open = string.Equals(_expandedSettingsKey, row.Key, StringComparison.Ordinal);
             row.Details.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-            row.Chevron.Text = open ? "\u2303" : "\u2304";
-            row.Chevron.Foreground = open ? GREEN : TXT2;
+            row.Chevron.Data = SettingsChevronGeometry(open);
+            row.Chevron.Stroke = open ? GREEN : TXT2;
             row.Expander.Background = open ? B(18, C_GREEN.R, C_GREEN.G, C_GREEN.B) : B(14, 255, 255, 255);
             row.Expander.BorderBrush = open ? B(45, C_GREEN.R, C_GREEN.G, C_GREEN.B) : B(24, 255, 255, 255);
             row.Card.BorderBrush = open ? B(60, C_GREEN.R, C_GREEN.G, C_GREEN.B) : B(C_BRD);
