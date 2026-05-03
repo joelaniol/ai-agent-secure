@@ -1,0 +1,44 @@
+# Agenten / lokale Arbeitsnotizen
+.claude/
+.codex/
+.agents/
+CLAUDE.md
+AGENTS.md
+
+# QA / interne Notizen
+bug.md
+.qa-*
+doc/quality-guidelines.md
+tests/
+scanner-report.bat
+tools/scanner-report.ps1
+tools/scanner-baseline.json
+tools/new-scanner-baseline-draft.ps1
+test.bat
+make-icon.ps1
+make_icon.py
+
+# Python
+__pycache__/
+*.pyc
+
+# Temporäre Test-/Debug-Verzeichnisse
+tmp-*/
+
+# Build-Artefakte
+dist/
+*.exe
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
