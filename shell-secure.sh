@@ -9,11 +9,21 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Robust HOME detection (fallback if HOME is unset or empty).
+if [ -z "${HOME:-}" ]; then
+    HOME="$(cd ~ 2>/dev/null && pwd || true)"
+fi
+if [ -z "${HOME:-}" ]; then
+    HOME="/c/Users/$(whoami 2>/dev/null || printf '%s' "${USERNAME:-User}")"
+fi
+export HOME
+
 INSTALL_DIR="$HOME/.shell-secure"
 BASHRC="$HOME/.bashrc"
 MARKER_BEGIN="# >>> shell-secure >>>"
 MARKER_END="# <<< shell-secure <<<"
-VERSION="1.0.3"
+VERSION="1.0.4"
 
 # CLI colors
 RED='\033[0;31m'
