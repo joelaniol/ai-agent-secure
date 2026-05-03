@@ -1,7 +1,7 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.0.0` | Build `20260503.014102` | Built `2026-05-03 01:41:02 UTC`
+**Current version:** `1.0.1` | Build `20260503.030744` | Built `2026-05-03 03:07:44 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->
@@ -212,12 +212,12 @@ Paths are normalized before comparison:
 
 ### Prerequisites
 
-- Windows 10/11
+- Windows 10/11 with .NET Framework 4.8 or newer
 - [Git for Windows](https://gitforwindows.org/) (Git Bash)
 
 ### GUI (recommended)
 
-Download `shell-secure-gui.exe` from the [latest release](https://github.com/joelaniol/ai-agent-secure/releases) and run it. That's it — no dependencies, no installation. The executable name and CLI stay `shell-secure` for compatibility; the visible product name is AI Agent Secure. Handles setup, configuration, and monitoring in one window with a system tray icon. Uses classic .NET Framework/WPF (4.x), included with Windows 10/11 installations.
+Download the Windows ZIP from the [latest release](https://github.com/joelaniol/ai-agent-secure/releases), extract it, and run `shell-secure-gui.exe`. There is no separate app installer. The executable name and CLI stay `shell-secure` for compatibility; the visible product name is AI Agent Secure. Handles setup, configuration, and monitoring in one window with a system tray icon. Uses classic .NET Framework/WPF (4.8-compatible), which is serviced with Windows.
 
 ### Alternative: Interactive setup TUI
 
@@ -488,7 +488,7 @@ Removes all files from `~/.shell-secure/`, cleans up `.bashrc`, and backs up the
 
 Only needed if you want to compile the GUI yourself. End users don't need this.
 
-- **.NET Framework 4.x compiler** (`csc.exe`) — compiles the GUI (included with standard Windows .NET Framework installations)
+- **.NET Framework 4.8+ compiler** (`csc.exe`) — compiles the GUI
 - **PowerShell** — runs the build script
 
 The build updates `VERSION` and the README version block, so GitHub shows the current build after the change is committed and pushed.
@@ -505,7 +505,7 @@ Release ZIPs are generated into `dist/` and are meant for GitHub Releases, not f
 .\package-release.ps1
 ```
 
-The package contains the GUI executable, `VERSION`, `README.md`, `LICENSE`, release metadata, and SHA256 checksums.
+The package contains the GUI executable, `VERSION`, `README.md`, `LICENSE`, `CONTRIBUTING.md`, release metadata, and SHA256 checksums.
 
 ## License
 
@@ -522,7 +522,7 @@ Because commercial sale is restricted, this is not an OSI-approved open source l
 | Component | Purpose | License |
 |---|---|---|
 | [Git for Windows](https://gitforwindows.org/) | Provides Git Bash (required for shell protection) | [GPL v2](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
-| [.NET Framework 4.x](https://dotnet.microsoft.com/) | GUI runtime (WPF) — included with Windows 10/11 installations | [Microsoft terms](https://dotnet.microsoft.com/platform/free) |
+| [.NET Framework 4.8+](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server) | GUI runtime/build target (WPF) — serviced with supported Windows versions | [Microsoft terms](https://dotnet.microsoft.com/platform/free) |
 
 AI Agent Secure does not bundle or redistribute any of these components.
 

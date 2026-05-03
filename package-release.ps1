@@ -137,6 +137,7 @@ try {
     Copy-Item -LiteralPath $versionPath -Destination (Join-Path $stageDir "VERSION")
     Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination (Join-Path $stageDir "README.md")
     Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $stageDir "LICENSE")
+    Copy-Item -LiteralPath (Join-Path $repoRoot "CONTRIBUTING.md") -Destination (Join-Path $stageDir "CONTRIBUTING.md")
 
     $commit = Get-GitValue -GitArgs @("rev-parse", "--short=12", "HEAD")
     $tag = Get-GitValue -GitArgs @("describe", "--tags", "--exact-match", "HEAD")
@@ -157,7 +158,7 @@ Project: https://github.com/joelaniol/ai-agent-secure
     [IO.File]::WriteAllText((Join-Path $stageDir "RELEASE.txt"), ($releaseText.TrimEnd() + "`n"), $utf8NoBom)
 
     $sumLines = @()
-    foreach ($fileName in @("shell-secure-gui.exe", "VERSION", "README.md", "LICENSE", "RELEASE.txt")) {
+    foreach ($fileName in @("shell-secure-gui.exe", "VERSION", "README.md", "LICENSE", "CONTRIBUTING.md", "RELEASE.txt")) {
         $filePath = Join-Path $stageDir $fileName
         $sumLines += "$(Get-Sha256 -Path $filePath)  $fileName"
     }
