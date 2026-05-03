@@ -1,21 +1,75 @@
-MIT License
+AI Agent Secure Source-Available License v1.0
 
-Copyright (c) 2026 joelaniol
+Copyright (c) 2026 Joel Aniol. All rights reserved except as expressly
+granted by this license.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Definitions
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+"Software" means the AI Agent Secure source code, binaries, scripts,
+documentation, and other project files made available in this repository.
+
+"Commercial Sale" means selling, renting, leasing, sublicensing for a fee,
+offering paid access to, bundling with, or distributing the Software or a
+modified version as part of a paid product or paid service.
+
+2. Permitted Use
+
+Subject to this license, you may:
+
+- use the Software for personal, educational, evaluation, security review, and
+  internal business purposes;
+- copy and modify the Software for those permitted purposes;
+- share patches, pull requests, bug reports, and other contributions with the
+  project; and
+- redistribute unmodified copies of the Software for non-commercial purposes,
+  provided that this license and all copyright notices remain intact.
+
+3. Commercial Sale Restriction
+
+You may not perform a Commercial Sale of the Software or any modified version
+without prior written permission from Joel Aniol.
+
+4. Contributions
+
+By submitting a contribution to this project, including through a pull request,
+issue, patch, email, or other communication, you agree that your contribution is
+licensed under this license.
+
+You also grant Joel Aniol and the project maintainers a perpetual, worldwide,
+non-exclusive, royalty-free, irrevocable license to use, copy, modify, merge,
+publish, distribute, sublicense, and relicense your contribution as part of the
+Software.
+
+You represent that you have the right to submit the contribution and to grant
+these rights.
+
+5. Notices and Modified Versions
+
+You must keep this license and all copyright notices with every copy of the
+Software or substantial portion of it.
+
+Modified versions must not be presented as official AI Agent Secure releases
+unless they are approved by Joel Aniol. Modified versions should clearly state
+that they have been changed.
+
+6. Trademarks
+
+This license does not grant permission to use the names, logos, or trademarks
+of AI Agent Secure, Joel Aniol, or related brands except as necessary to
+describe the origin of the Software.
+
+7. Third-Party Components
+
+Third-party components remain governed by their own licenses. This license does
+not change the terms of any third-party software used with or referenced by the
+Software.
+
+8. No Warranty
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS, COPYRIGHT HOLDERS, OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+OR OTHER DEALINGS IN THE SOFTWARE.

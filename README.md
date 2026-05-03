@@ -509,7 +509,13 @@ The package contains the GUI executable, `VERSION`, `README.md`, `LICENSE`, rele
 
 ## License
 
-This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
+This project is licensed under the **AI Agent Secure Source-Available License v1.0** — see [LICENSE](LICENSE) for details.
+
+You may use, inspect, modify, and contribute to the project under the license terms. Commercial sale or paid redistribution of AI Agent Secure, including modified versions, requires prior written permission from Joel Aniol.
+
+Contributions are welcome under the contribution terms in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Because commercial sale is restricted, this is not an OSI-approved open source license.
 
 ### Third-party components
 
