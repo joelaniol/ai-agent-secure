@@ -47,6 +47,23 @@ partial class MainPanel
         RefreshAll();
     }
 
+    void DoToggleGitLeak()
+    {
+        if (!EnsureInstalledForEditing(Loc.T("action.toggle_git_leak"))) return;
+        _cfg.GitLeakProtect = !_cfg.GitLeakProtect;
+        if (!SaveConfig()) return;
+        RefreshAll();
+    }
+
+    void DoCommitGitLeakTimeout(int value)
+    {
+        if (!EnsureInstalledForEditing(Loc.T("action.change_leak_timeout"))) return;
+        if (value == _cfg.GitLeakTimeout) return;
+        _cfg.GitLeakTimeout = value;
+        if (!SaveConfig()) return;
+        RefreshAll();
+    }
+
     void DoCommitGitFloodThreshold(int value)
     {
         if (!EnsureInstalledForEditing(Loc.T("action.change_flood_threshold"))) return;

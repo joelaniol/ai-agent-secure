@@ -139,15 +139,15 @@ show_header() {
         disabled) status_text="AUS - Schutz deaktiviert"; status_color="$Y" ;;
         active_full) status_text="AN - Vollschutz aktiv"; status_color="$G" ;;
         active_partial) status_text="AN - Teilweise aktiv"; status_color="$Y" ;;
-        reload_needed) status_text="AN - Neu laden noetig"; status_color="$Y" ;;
+        reload_needed) status_text="AN - Neu laden nötig"; status_color="$Y" ;;
         env_conflict) status_text="AN - BASH_ENV Konflikt"; status_color="$Y" ;;
-        *) status_text="AN - Reparatur noetig"; status_color="$R" ;;
+        *) status_text="AN - Reparatur nötig"; status_color="$R" ;;
     esac
 
     echo ""
     echo -e "  ${B}┌────────────────────────────────────────────┐${NC}"
     echo -e "  ${B}│${NC}   AI Agent Secure v${VERSION}                    ${B}│${NC}"
-    echo -e "  ${B}│${NC}   ${D}Shell- und Git-Schutz fuer Agents${NC}      ${B}│${NC}"
+    echo -e "  ${B}│${NC}   ${D}Shell- und Git-Schutz für Agents${NC}      ${B}│${NC}"
     echo -e "  ${B}│${NC}                                            ${B}│${NC}"
     echo -e "  ${B}│${NC}   Status: ${status_color}${status_text}${NC}$(printf '%*s' $((20 - ${#status_text})) '')${B}│${NC}"
     echo -e "  ${B}└────────────────────────────────────────────┘${NC}"

@@ -10,6 +10,7 @@
 #         protection-delete.sh      - rm and cmd /c rmdir wrappers
 #         protection-ps.sh          - PowerShell UTF-8 enforcement + wrapper
 #         protection-http.sh        - curl authenticated destructive API guard
+#         protection-git-leak.sh    - git push leak detector
 #         protection-git.sh         - git destructive guards + flood limiter
 #         protection-env.sh         - env wrapper that catches "env git ..."
 #  Build/install paths concatenate these slices into one file at install
@@ -25,6 +26,7 @@ source "$_ss_loader_dir/protection-tokenize.sh"
 source "$_ss_loader_dir/protection-delete.sh"
 source "$_ss_loader_dir/protection-ps.sh"
 source "$_ss_loader_dir/protection-http.sh"
+source "$_ss_loader_dir/protection-git-leak.sh"
 source "$_ss_loader_dir/protection-git.sh"
 source "$_ss_loader_dir/protection-env.sh"
 unset _ss_loader_dir

@@ -9,9 +9,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// Startmenue-Shortcut mit AppUserModelID. Ohne diesen Shortcut zeigt
-// Windows 10/11 Toast-Benachrichtigungen aus NotifyIcon.ShowBalloonTip
-// oft nicht an (Focus Assist / Fehlende AUMID-Registrierung).
+// Start menu shortcut with AppUserModelID. Without this shortcut Windows 10/11
+// often suppresses NotifyIcon.ShowBalloonTip notifications (Focus Assist /
+// missing AUMID registration).
 static class ShortcutHelper
 {
     static string OldShortcutPath
@@ -200,10 +200,10 @@ static partial class Installer
     public static bool HasFullRuntime() { return FindGitBash() != null && HasRuntimeFiles() && IsOwnedBashEnv(); }
     public static bool HasInteractiveRuntime() { return FindGitBash() != null && File.Exists(Path.Combine(Dir, "protection.sh")) && HasBashRcHook(); }
 
-    // True wenn die installierten Runtime-Skripte vom EXE-eingebetteten Stand
-    // abweichen (z. B. weil ein neuer GUI-Build neue Schutz-Layer mitbringt
-    // und die User-Installation noch die alten Files hat). Vergleicht nur
-    // Skripte, NICHT die Config - die User-Config muss erhalten bleiben.
+    // True when installed runtime scripts differ from the EXE-embedded version
+    // (for example when a new GUI build ships new protection layers while the
+    // user installation still has older files). Compare scripts only, NOT the
+    // config; user config must be preserved.
     public static bool IsRuntimeOutdated()
     {
         if (!HasRuntimeFiles()) return false;
@@ -216,18 +216,18 @@ static partial class Installer
         try
         {
             if (!File.Exists(path)) return false;
-            // WrUnix normalisiert beim Schreiben: TrimStart CR/LF + CRLF->LF.
-            // Wir wenden dieselbe Normalisierung auf den embedded String an,
-            // damit Roundtrip-Vergleiche stabil sind. Datei-Inhalt zusaetzlich
-            // CRLF->LF normalisieren, falls ein externes Tool die Datei umgeformt hat.
+            // WrUnix normalizes on write: TrimStart CR/LF + CRLF->LF. Apply the
+            // same normalization to the embedded string so round-trip comparisons
+            // stay stable. Also normalize file content CRLF->LF in case an
+            // external tool rewrote the file.
             string actual = File.ReadAllText(path, Encoding.UTF8).Replace("\r\n", "\n");
             string normalizedExpected = (expected ?? "").TrimStart('\r', '\n').Replace("\r\n", "\n");
             return string.Equals(actual, normalizedExpected, StringComparison.Ordinal);
         }
         catch
         {
-            // Bei Lesefehler konservativ "passt schon" zurueckgeben, damit
-            // transiente IO-Probleme keinen Update-Banner triggern.
+            // On read errors, conservatively return "matches" so transient IO
+            // issues do not trigger an update banner.
             return true;
         }
     }

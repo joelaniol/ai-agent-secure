@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-#  AI Agent Secure - Einfacher Installer
-#  Einfach ausfuehren: bash setup.sh
+#  AI Agent Secure - simple installer
+#  Run with: bash setup.sh
 #  Purpose: thin setup entrypoint for Git Bash users.
 #  Scope: initialize shared constants, source focused setup modules, and dispatch main().
 # ============================================================
@@ -23,12 +23,12 @@ INSTALL_DIR="$HOME/.shell-secure"
 BASHRC="$HOME/.bashrc"
 MARKER_BEGIN="# >>> shell-secure >>>"
 MARKER_END="# <<< shell-secure <<<"
-VERSION="1.0.5"
+VERSION="1.1.0"
 
 # Setup UI colors
-R='\033[0;31m'    # Rot
-G='\033[0;32m'    # Gruen
-Y='\033[1;33m'    # Gelb
+R='\033[0;31m'    # Red
+G='\033[0;32m'    # Green
+Y='\033[1;33m'    # Yellow
 C='\033[0;36m'    # Cyan
 B='\033[1m'       # Bold
 D='\033[2m'       # Dim

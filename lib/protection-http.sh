@@ -401,8 +401,8 @@ _ss_block_http_api() {
     echo "  $(_ss_t block.label.target)$target" >&2
     echo "  $(_ss_t block.label.reason)$reason" >&2
     if [ "$lang" = "de" ]; then
-        echo "                 Methode: $method. Authentifizierte API-Loeschungen koennen" >&2
-        echo "                 Datenbanken, Volumes, Backups oder Projekte endgueltig entfernen." >&2
+        echo "                 Methode: $method. Authentifizierte API-Löschungen können" >&2
+        echo "                 Datenbanken, Volumes, Backups oder Projekte endgültig entfernen." >&2
     else
         echo "                 Method: $method. Authenticated API deletes can permanently" >&2
         echo "                 remove databases, volumes, backups, or projects." >&2
@@ -410,8 +410,8 @@ _ss_block_http_api() {
     _ss_block_rule
     echo "  $(_ss_t block.section.better_way)" >&2
     if [ "$lang" = "de" ]; then
-        echo "    Erst den Nutzer explizit fragen, Umgebung und Ressourcen-ID pruefen," >&2
-        echo "    und wenn moeglich Provider-UI, Dry-Run oder nicht-destruktive Preview nutzen." >&2
+        echo "    Erst den Nutzer explizit fragen, Umgebung und Ressourcen-ID prüfen," >&2
+        echo "    und wenn möglich Provider-UI, Dry-Run oder nicht-destruktive Preview nutzen." >&2
     else
         echo "    Ask the user for explicit permission first, verify environment and" >&2
         echo "    resource ID, and prefer provider UI, dry-run, or non-destructive preview." >&2
@@ -419,9 +419,9 @@ _ss_block_http_api() {
     _ss_block_rule
     echo "  $(_ss_t block.section.manual_release)" >&2
     if [ "$lang" = "de" ]; then
-        echo "    Nur nach ausdruecklicher Nutzerfreigabe erneut ausfuehren." >&2
-        echo "    Fuer laengere Admin-Sessions: SHELL_SECURE_HTTP_API_PROTECT=false" >&2
-        echo "    temporaer in ~/.shell-secure/config.conf setzen und danach wieder aktivieren." >&2
+        echo "    Nur nach ausdrücklicher Nutzerfreigabe erneut ausführen." >&2
+        echo "    Für längere Admin-Sessions: SHELL_SECURE_HTTP_API_PROTECT=false" >&2
+        echo "    temporär in ~/.shell-secure/config.conf setzen und danach wieder aktivieren." >&2
     else
         echo "    Re-run only after explicit user approval." >&2
         echo "    For longer admin sessions: temporarily set SHELL_SECURE_HTTP_API_PROTECT=false" >&2

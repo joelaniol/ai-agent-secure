@@ -2,7 +2,8 @@
 # Purpose: shared variables, config parser, path utilities, log writer, and the generic
 #          delete-block diagnostic. Used by every other protection slice.
 # Scope: no command wrappers; those live in protection-delete.sh / protection-ps.sh /
-#        protection-http.sh / protection-git.sh / protection-env.sh.
+#        protection-http.sh / protection-git-leak.sh / protection-git.sh /
+#        protection-env.sh.
 
 # Robust HOME detection (fallback if HOME is empty)
 : "${HOME:=$(cd ~ 2>/dev/null && pwd)}"
@@ -12,23 +13,27 @@ SHELL_SECURE_DIR="$HOME/.shell-secure"
 SHELL_SECURE_CONFIG="$SHELL_SECURE_DIR/config.conf"
 SHELL_SECURE_LOG="$SHELL_SECURE_DIR/blocked.log"
 SHELL_SECURE_ENABLED=true
-# Kategorie-Toggles. Default = an; Configs ohne diese Keys verhalten sich
-# damit wie bisher ("alles an"), sodass Upgrade-Pfade rueckwaertskompatibel
-# bleiben.
+# Category toggles. Default = on; configs without these keys behave as before
+# ("everything on"), keeping upgrade paths backward-compatible.
 SHELL_SECURE_DELETE_PROTECT=true
 SHELL_SECURE_GIT_PROTECT=true
-# Git-Flood-Schutz: zaehlt Netzwerk-git-Calls (push/pull/fetch/clone/ls-remote)
-# in einem Zeitfenster. Default 4 Calls pro 60 s. Schuetzt vor durchdrehenden
-# Agents, die Auth-Prompts spammen oder versehentliche Push/Pull-Loops bauen.
+# Git flood protection: count network git calls (push/pull/fetch/clone/
+# ls-remote) in a time window. Default 4 calls per 60 s. Protects against
+# runaway agents that spam auth prompts or accidental push/pull loops.
 SHELL_SECURE_GIT_FLOOD_PROTECT=true
 SHELL_SECURE_GIT_FLOOD_THRESHOLD=4
 SHELL_SECURE_GIT_FLOOD_WINDOW=60
-# HTTP/API-Schutz: blockt authentifizierte curl-Aufrufe mit destruktiver
-# API-Semantik (DELETE oder POST/PATCH/PUT mit delete/drop/purge/... Payload).
+# Git leak protection: inspect commits about to be pushed for high-risk secret
+# and agent-workspace paths. The terminal allow prompt times out fail-closed;
+# agents may use SHELL_SECURE_GIT_LEAK_FORCE=1 for an audited one-shot bypass.
+SHELL_SECURE_GIT_LEAK_PROTECT=true
+SHELL_SECURE_GIT_LEAK_TIMEOUT=60
+# HTTP/API protection: block authenticated curl calls with destructive API
+# semantics (DELETE or POST/PATCH/PUT with delete/drop/purge/... payload).
 SHELL_SECURE_HTTP_API_PROTECT=true
-# PowerShell-UTF-8-Schutz: blockt schreibende PS-Aufrufe ohne -Encoding utf8.
-# Windows PowerShell 5.1 schreibt sonst UTF-16 LE BOM (Out-File, >) bzw. ANSI
-# (Set-Content, Add-Content), was Quellcode-Dateien beschaedigt.
+# PowerShell UTF-8 protection: block writing PS calls without -Encoding utf8.
+# Otherwise Windows PowerShell 5.1 writes UTF-16 LE BOM (Out-File, >) or ANSI
+# (Set-Content, Add-Content), damaging source files.
 SHELL_SECURE_PS_ENCODING_PROTECT=true
 # Language: "en" (default) or "de". Drives block-message text and GUI labels.
 # Validated leniently - any value other than "de" falls back to English.
@@ -58,9 +63,9 @@ _ss_unescape_config() {
 
 _ss_expand_config_path() {
     local p="$1"
-    # Config-Dateien schreiben Logpfade oft als "$HOME/...", aber Bash
-    # expandiert Variablen nicht erneut, wenn der Wert spaeter benutzt wird.
-    # Deshalb loesen wir nur die explizit unterstuetzten Home-Prefixe auf.
+    # Config files often write log paths as "$HOME/...", but Bash does not
+    # expand variables again when the value is used later. Resolve only the
+    # explicitly supported home prefixes.
     case "$p" in
         '$HOME'|'$HOME'/*)
             p="${HOME}${p#\$HOME}"
@@ -79,15 +84,17 @@ _ss_load_config() {
     local state="" line trimmed
 
     SHELL_SECURE_ENABLED=true
-    # Default-on bei fehlendem Key -> bestehende Configs behalten vollen Schutz.
+    # Default-on for missing keys: existing configs keep full protection.
     SHELL_SECURE_DELETE_PROTECT=true
     SHELL_SECURE_GIT_PROTECT=true
-    # Flood-Defaults bewusst konservativ: 4 Netzwerk-git-Calls pro 60 s. Das
-    # blockt typische Agent-Loops, ohne normales Push-Pull-Pull-Push-Verhalten
-    # zu stoeren.
+    # Flood defaults are intentionally conservative: 4 network git calls per
+    # 60 s. This blocks typical agent loops without disrupting normal
+    # push-pull-pull-push workflows.
     SHELL_SECURE_GIT_FLOOD_PROTECT=true
     SHELL_SECURE_GIT_FLOOD_THRESHOLD=4
     SHELL_SECURE_GIT_FLOOD_WINDOW=60
+    SHELL_SECURE_GIT_LEAK_PROTECT=true
+    SHELL_SECURE_GIT_LEAK_TIMEOUT=60
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
@@ -147,6 +154,16 @@ _ss_load_config() {
 
         if [[ "$trimmed" =~ ^SHELL_SECURE_GIT_FLOOD_WINDOW[[:space:]]*=[[:space:]]*([0-9]+)$ ]]; then
             SHELL_SECURE_GIT_FLOOD_WINDOW="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$trimmed" =~ ^SHELL_SECURE_GIT_LEAK_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_GIT_LEAK_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$trimmed" =~ ^SHELL_SECURE_GIT_LEAK_TIMEOUT[[:space:]]*=[[:space:]]*([0-9]+)$ ]]; then
+            SHELL_SECURE_GIT_LEAK_TIMEOUT="${BASH_REMATCH[1]}"
             continue
         fi
 
@@ -316,10 +333,9 @@ _ss_block_rule() {
     echo "  ------------------------------------" >&2
 }
 
-# Kategorie-Checks bauen auf dem Master-Schalter auf: ist der Master aus,
-# ist automatisch auch jede Kategorie aus. Config wird genau einmal pro
-# Aufruf neu gelesen (via _ss_runtime_enabled), damit Toggles aus der GUI
-# ohne Shell-Reload wirken.
+# Category checks build on the master switch: when master is off, every category
+# is off too. Config is re-read exactly once per invocation (via
+# _ss_runtime_enabled) so GUI toggles take effect without shell reload.
 _ss_delete_protect_enabled() {
     _ss_runtime_enabled && [ "$SHELL_SECURE_DELETE_PROTECT" = "true" ]
 }
@@ -330,6 +346,10 @@ _ss_git_protect_enabled() {
 
 _ss_git_flood_protect_enabled() {
     _ss_runtime_enabled && [ "$SHELL_SECURE_GIT_FLOOD_PROTECT" = "true" ]
+}
+
+_ss_git_leak_protect_enabled() {
+    _ss_runtime_enabled && [ "$SHELL_SECURE_GIT_LEAK_PROTECT" = "true" ]
 }
 
 _ss_http_api_protect_enabled() {
@@ -344,12 +364,12 @@ _ss_block() {
     local cmd_name="$1"
     local target="$2"
     local reason="$3"
-    # Optional: konkreter Alternativvorschlag. Default passt fuer generische
-    # Loesch-Blocks; die Wrapper uebergeben kontextspezifische Vorschlaege.
+    # Optional concrete safer alternative. Default fits generic delete blocks;
+    # wrappers pass context-specific suggestions.
     local safer="${4:-}"
     if [ -z "$safer" ]; then
         if [ "$(_ss_lang)" = "de" ]; then
-            safer="Einzelne Dateien gezielt ohne -rf loeschen, oder den Ordner zuerst umbenennen (mv \"$target\" \"$target.old\") statt direkt zu loeschen."
+            safer="Einzelne Dateien gezielt ohne -rf löschen, oder den Ordner zuerst umbenennen (mv \"$target\" \"$target.old\") statt direkt zu löschen."
         else
             safer="Delete individual files without -rf, or rename the folder first (mv \"$target\" \"$target.old\") instead of removing it outright."
         fi

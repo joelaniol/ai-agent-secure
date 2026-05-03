@@ -2,11 +2,10 @@
 # Purpose: install, uninstall, update runtime files, and write the non-interactive shell loader.
 # Scope: status rendering and config list edits stay in sibling CLI modules.
 
-# Konkateniert die Slice-Dateien lib/protection-*.sh in genau der gleichen
-# Reihenfolge wie build-gui.ps1 zu einer einzigen ~/.shell-secure/protection.sh
-# zusammen. Nach dem Refactor ist lib/protection.sh nur noch ein Loader fuer
-# Source-Level-Tests; der Runtime-Install liefert weiterhin EINE Datei,
-# byte-identisch zum embedded Stand der GUI.
+# Concatenate lib/protection-*.sh slices in the exact same order as build-gui.ps1
+# into one ~/.shell-secure/protection.sh. After the refactor, lib/protection.sh
+# is only a loader for source-level tests; the runtime install still ships ONE
+# file, byte-identical to the GUI-embedded version.
 write_protection_bundle() {
     local target="$1"
     local slices=(
@@ -16,6 +15,7 @@ write_protection_bundle() {
         "protection-delete.sh"
         "protection-ps.sh"
         "protection-http.sh"
+        "protection-git-leak.sh"
         "protection-git.sh"
         "protection-env.sh"
     )
@@ -94,11 +94,11 @@ BASHRC_BLOCK
     echo ""
     echo -e "  ${GREEN}${BOLD}Installation abgeschlossen!${NC}"
     echo ""
-    echo "  Naechste Schritte:"
+    echo "  Nächste Schritte:"
     echo "  ──────────────────"
-    echo "  1. Neue Shell oeffnen oder: source ~/.bashrc"
+    echo "  1. Neue Shell öffnen oder: source ~/.bashrc"
     echo ""
-    echo "  2. Fuer VOLLSTAENDIGEN Schutz (auch nicht-interaktive Shells):"
+    echo "  2. Für VOLLSTÄNDIGEN Schutz (auch nicht-interaktive Shells):"
     echo "     Systemumgebungsvariable setzen:"
     echo ""
     echo "     BASH_ENV=$bash_env_file"
@@ -173,11 +173,11 @@ do_uninstall() {
     echo -e "  ${GREEN}${BOLD}Deinstallation abgeschlossen!${NC}"
     echo ""
     if has_foreign_bash_env; then
-        echo "  Hinweis: Vorhandenes fremdes BASH_ENV wurde nicht veraendert:"
+        echo "  Hinweis: Vorhandenes fremdes BASH_ENV wurde nicht verändert:"
         echo "  $(current_user_bash_env)"
         echo ""
     fi
-    echo "  Neue Shell oeffnen um Aenderungen zu uebernehmen."
+    echo "  Neue Shell öffnen um Änderungen zu übernehmen."
     echo ""
 }
 
@@ -189,5 +189,5 @@ do_update() {
     write_protection_bundle "$INSTALL_DIR/protection.sh"
     write_env_loader
     ok "Protection-Script und Env-Loader aktualisiert"
-    info "Neue Shell oeffnen oder: source ~/.bashrc"
+    info "Neue Shell öffnen oder: source ~/.bashrc"
 }

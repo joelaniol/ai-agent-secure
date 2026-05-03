@@ -17,7 +17,7 @@ do_status() {
         return
     fi
 
-    # Dateien
+    # Files
     echo -e "  ${B}Dateien:${NC}"
     [ -f "$INSTALL_DIR/protection.sh" ] && echo -e "    ${G}+${NC} protection.sh" || echo -e "    ${R}x${NC} protection.sh fehlt"
     [ -f "$INSTALL_DIR/config.conf" ]   && echo -e "    ${G}+${NC} config.conf"   || echo -e "    ${R}x${NC} config.conf fehlt"
@@ -45,7 +45,7 @@ do_status() {
         echo -e "    ${Y}!${NC} Fremder Loader gesetzt"
         echo -e "    ${D}  $current_env${NC}"
     else
-        echo -e "    ${Y}!${NC} Nicht gesetzt (nur interaktive Shells geschuetzt)"
+        echo -e "    ${Y}!${NC} Nicht gesetzt (nur interaktive Shells geschützt)"
         echo -e "    ${D}  Setzen mit PowerShell (Admin):${NC}"
         echo -e "    ${D}  [Environment]::SetEnvironmentVariable('BASH_ENV',${NC}"
         echo -e "    ${D}    '$INSTALL_DIR/env-loader.sh', 'User')${NC}"
@@ -58,18 +58,18 @@ do_status() {
     case "$state" in
         active_full) echo -e "    ${G}+${NC} Vollschutz aktiv" ;;
         active_partial) echo -e "    ${Y}!${NC} Teilweise aktiv" ;;
-        reload_needed) echo -e "    ${Y}!${NC} Neu laden noetig" ;;
+        reload_needed) echo -e "    ${Y}!${NC} Neu laden nötig" ;;
         env_conflict) echo -e "    ${Y}!${NC} BASH_ENV-Konflikt" ;;
-        repair_needed) echo -e "    ${R}x${NC} Reparatur noetig" ;;
+        repair_needed) echo -e "    ${R}x${NC} Reparatur nötig" ;;
         disabled) echo -e "    ${Y}!${NC} Schutz deaktiviert" ;;
     esac
 
     echo ""
     echo -e "  ${B}Schutzarten:${NC}"
     if [ "${SHELL_SECURE_DELETE_PROTECT:-true}" = "true" ]; then
-        echo -e "    ${G}+${NC} Rekursives Loeschen"
+        echo -e "    ${G}+${NC} Rekursives Löschen"
     else
-        echo -e "    ${Y}!${NC} Rekursives Loeschen deaktiviert"
+        echo -e "    ${Y}!${NC} Rekursives Löschen deaktiviert"
     fi
     if [ "${SHELL_SECURE_GIT_PROTECT:-true}" = "true" ]; then
         echo -e "    ${G}+${NC} Destruktive Git-Befehle"
@@ -83,8 +83,14 @@ do_status() {
     else
         echo -e "    ${Y}!${NC} Git-Flood-Schutz deaktiviert"
     fi
+    if [ "${SHELL_SECURE_GIT_LEAK_PROTECT:-true}" = "true" ]; then
+        local leak_timeout="${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}"
+        echo -e "    ${G}+${NC} Git-Leak-Schutz (Allow-Timeout ${leak_timeout}s)"
+    else
+        echo -e "    ${Y}!${NC} Git-Leak-Schutz deaktiviert"
+    fi
     if [ "${SHELL_SECURE_HTTP_API_PROTECT:-true}" = "true" ]; then
-        echo -e "    ${G}+${NC} HTTP/API-Schutz fuer curl"
+        echo -e "    ${G}+${NC} HTTP/API-Schutz für curl"
     else
         echo -e "    ${Y}!${NC} HTTP/API-Schutz deaktiviert"
     fi
@@ -94,16 +100,16 @@ do_status() {
         echo -e "    ${Y}!${NC} PowerShell-UTF-8-Pflicht deaktiviert"
     fi
 
-    # Geschuetzte Verzeichnisse
+    # Protected directories
     echo ""
-    echo -e "  ${B}Geschuetzte Verzeichnisse:${NC}"
+    echo -e "  ${B}Geschützte Verzeichnisse:${NC}"
     for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
         echo -e "    ${G}>${NC} $dir"
     done
 
     # Whitelist
     echo ""
-    echo -e "  ${B}Whitelist (darf geloescht werden):${NC}"
+    echo -e "  ${B}Whitelist (darf gelöscht werden):${NC}"
     local list=""
     for safe in "${SHELL_SECURE_SAFE_TARGETS[@]}"; do
         list+="$safe, "
@@ -118,7 +124,7 @@ do_status() {
         count=$(wc -l < "$INSTALL_DIR/blocked.log")
         echo -e "    ${Y}${count}${NC} blockierte Operationen"
         echo ""
-        echo -e "  ${B}Letzte 5 Eintraege:${NC}"
+        echo -e "  ${B}Letzte 5 Einträge:${NC}"
         tail -5 "$INSTALL_DIR/blocked.log" | while IFS= read -r line; do
             echo -e "    ${D}$line${NC}"
         done

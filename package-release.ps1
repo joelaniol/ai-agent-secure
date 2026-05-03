@@ -89,7 +89,9 @@ function Remove-OldReleasePackages {
 $repoRoot = $PSScriptRoot
 $distDir = Join-Path $repoRoot "dist"
 $versionPath = Join-Path $repoRoot "VERSION"
+$releaseNotesPath = Join-Path $repoRoot "RELEASE_NOTES.md"
 $exePath = Join-Path $distDir "shell-secure-gui.exe"
+$fallbackExePath = Join-Path $distDir "shell-secure-gui-new.exe"
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 Push-Location $repoRoot
@@ -101,7 +103,14 @@ try {
         }
     }
 
-    if (-not (Test-Path -LiteralPath $exePath)) {
+    $packageExePath = $exePath
+    $hasExe = Test-Path -LiteralPath $exePath
+    $hasFallbackExe = Test-Path -LiteralPath $fallbackExePath
+    if ($hasFallbackExe -and (-not $hasExe -or (Get-Item -LiteralPath $fallbackExePath).LastWriteTimeUtc -gt (Get-Item -LiteralPath $exePath).LastWriteTimeUtc)) {
+        $packageExePath = $fallbackExePath
+        Write-Host "Nutze frisch gebaute Fallback-EXE: $fallbackExePath" -ForegroundColor Yellow
+    }
+    elseif (-not $hasExe) {
         throw "GUI executable not found: $exePath"
     }
 
@@ -133,11 +142,14 @@ try {
 
     New-Item -ItemType Directory -Path $stageDir | Out-Null
 
-    Copy-Item -LiteralPath $exePath -Destination (Join-Path $stageDir "shell-secure-gui.exe")
+    Copy-Item -LiteralPath $packageExePath -Destination (Join-Path $stageDir "shell-secure-gui.exe")
     Copy-Item -LiteralPath $versionPath -Destination (Join-Path $stageDir "VERSION")
     Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination (Join-Path $stageDir "README.md")
     Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $stageDir "LICENSE")
     Copy-Item -LiteralPath (Join-Path $repoRoot "CONTRIBUTING.md") -Destination (Join-Path $stageDir "CONTRIBUTING.md")
+    if (Test-Path -LiteralPath $releaseNotesPath) {
+        Copy-Item -LiteralPath $releaseNotesPath -Destination (Join-Path $stageDir "RELEASE_NOTES.md")
+    }
 
     $commit = Get-GitValue -GitArgs @("rev-parse", "--short=12", "HEAD")
     $tag = Get-GitValue -GitArgs @("describe", "--tags", "--exact-match", "HEAD")
@@ -155,10 +167,20 @@ Package UTC: $packageUtc
 Run shell-secure-gui.exe to start AI Agent Secure.
 Project: https://github.com/joelaniol/ai-agent-secure
 "@
+    if (Test-Path -LiteralPath $releaseNotesPath) {
+        $notesText = Get-Content -LiteralPath $releaseNotesPath -Raw
+        if (-not [string]::IsNullOrWhiteSpace($notesText)) {
+            $releaseText = $releaseText.TrimEnd() + "`n`nRelease notes:`n`n" + $notesText.TrimEnd() + "`n"
+        }
+    }
     [IO.File]::WriteAllText((Join-Path $stageDir "RELEASE.txt"), ($releaseText.TrimEnd() + "`n"), $utf8NoBom)
 
     $sumLines = @()
-    foreach ($fileName in @("shell-secure-gui.exe", "VERSION", "README.md", "LICENSE", "CONTRIBUTING.md", "RELEASE.txt")) {
+    $packageFiles = @("shell-secure-gui.exe", "VERSION", "README.md", "LICENSE", "CONTRIBUTING.md", "RELEASE.txt")
+    if (Test-Path -LiteralPath (Join-Path $stageDir "RELEASE_NOTES.md")) {
+        $packageFiles += "RELEASE_NOTES.md"
+    }
+    foreach ($fileName in $packageFiles) {
         $filePath = Join-Path $stageDir $fileName
         $sumLines += "$(Get-Sha256 -Path $filePath)  $fileName"
     }

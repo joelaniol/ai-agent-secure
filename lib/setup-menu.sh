@@ -72,7 +72,7 @@ main() {
             *)
                 echo "Verwendung: setup.sh [install|uninstall|on|off|status|dirs]"
                 echo "            setup.sh add <pfad>"
-                echo "Ohne Argumente: Interaktives Menue"
+                echo "Ohne Argumente: Interaktives Menü"
                 ;;
         esac
         return

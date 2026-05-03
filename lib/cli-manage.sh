@@ -24,15 +24,15 @@ do_add() {
     key=$(normalize_path_key "$path")
     for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
         if [ "$(normalize_path_key "$dir")" = "$key" ]; then
-            info "Bereits geschuetzt: $dir"
+            info "Bereits geschützt: $dir"
             return 0
         fi
     done
 
     SHELL_SECURE_PROTECTED_DIRS+=("${path//\\//}")
     cfg_write "$config"
-    ok "Geschuetztes Verzeichnis hinzugefuegt: $path"
-    info "Neue Shell oeffnen oder: source ~/.bashrc"
+    ok "Geschütztes Verzeichnis hinzugefügt: $path"
+    info "Neue Shell öffnen oder: source ~/.bashrc"
 }
 
 do_remove_dir() {
@@ -70,7 +70,7 @@ do_remove_dir() {
     SHELL_SECURE_PROTECTED_DIRS=("${kept[@]}")
     cfg_write "$config"
     ok "Entfernt: $path"
-    info "Neue Shell oeffnen oder: source ~/.bashrc"
+    info "Neue Shell öffnen oder: source ~/.bashrc"
 }
 
 do_whitelist() {
@@ -102,8 +102,8 @@ do_whitelist() {
 
     SHELL_SECURE_SAFE_TARGETS+=("$name")
     cfg_write "$config"
-    ok "Whitelist-Eintrag hinzugefuegt: $name"
-    info "Neue Shell oeffnen oder: source ~/.bashrc"
+    ok "Whitelist-Eintrag hinzugefügt: $name"
+    info "Neue Shell öffnen oder: source ~/.bashrc"
 }
 
 do_enable() {
@@ -118,7 +118,7 @@ do_enable() {
     }
     SHELL_SECURE_ENABLED=true
     cfg_write "$config"
-    ok "Schutz aktiviert. Neue Shell oeffnen oder: source ~/.bashrc"
+    ok "Schutz aktiviert. Neue Shell öffnen oder: source ~/.bashrc"
 }
 
 do_disable() {
@@ -133,5 +133,5 @@ do_disable() {
     }
     SHELL_SECURE_ENABLED=false
     cfg_write "$config"
-    ok "Schutz deaktiviert. Neue Shell oeffnen oder: source ~/.bashrc"
+    ok "Schutz deaktiviert. Neue Shell öffnen oder: source ~/.bashrc"
 }

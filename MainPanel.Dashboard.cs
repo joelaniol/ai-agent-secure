@@ -28,11 +28,10 @@ partial class MainPanel
         stack.Children.Add(_statusBanner);
         stack.Children.Add(Sp(10));
 
-        // Update-Banner: zeigt sich nur wenn die installierte protection.sh
-        // bzw. env-loader.sh nicht mit den ins EXE eingebetteten Versionen
-        // uebereinstimmen. Triggert den bestehenden DoUpdate()-Pfad, sodass
-        // bestehende Installationen die neuen Schutz-Layer aktiv ziehen
-        // koennen, ohne dass der Nutzer die Installer-Seite findet.
+        // Update banner: visible only when installed protection.sh or
+        // env-loader.sh differs from the EXE-embedded versions. Triggers the
+        // existing DoUpdate() path so existing installations pull new protection
+        // layers without the user finding the installer page.
         _updateBanner = new Border
         {
             CornerRadius = new CornerRadius(10),
@@ -178,9 +177,9 @@ partial class MainPanel
             _statusTitle.Text = Loc.T("dashboard.status.off"); _statusTitle.Foreground = RED;
             _statusSub.Text = Loc.T("dashboard.status.off_hint");
         }
-        // Update-Banner nur zeigen wenn installiert UND Skripte veraltet sind.
-        // Bei "nicht installiert" deckt schon der NotInstalled-Status alles ab;
-        // wir wollen nicht beide Banner gleichzeitig.
+        // Show the update banner only when installed and scripts are stale.
+        // For "not installed", the NotInstalled status already covers the case;
+        // avoid showing both banners at once.
         bool runtimeOutdated = _cfg.IsInstalled && Installer.IsRuntimeOutdated();
         _updateBanner.Visibility = runtimeOutdated ? Visibility.Visible : Visibility.Collapsed;
 

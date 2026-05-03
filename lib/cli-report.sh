@@ -29,19 +29,19 @@ do_status() {
     if is_session_active; then
         ok "Aktiv in dieser Shell-Session"
     else
-        warn "Nicht aktiv in dieser Session (source ~/.bashrc ausfuehren)"
+        warn "Nicht aktiv in dieser Session (source ~/.bashrc ausführen)"
     fi
 
     if is_owned_bash_env; then
         if has_live_previous_bash_env; then
             ok "BASH_ENV gesetzt und mit bestehendem Loader verkettet"
         else
-            ok "BASH_ENV gesetzt (nicht-interaktive Shells geschuetzt)"
+            ok "BASH_ENV gesetzt (nicht-interaktive Shells geschützt)"
         fi
     elif has_foreign_bash_env; then
         warn "BASH_ENV wird von anderem Loader verwendet: $current_env"
     else
-        warn "BASH_ENV nicht gesetzt (nicht-interaktive Shells ungeschuetzt)"
+        warn "BASH_ENV nicht gesetzt (nicht-interaktive Shells ungeschützt)"
     fi
 
     echo ""
@@ -51,16 +51,16 @@ do_status() {
             echo -e "    ${GREEN}Vollschutz aktiv${NC}"
             ;;
         active_partial)
-            echo -e "    ${YELLOW}Teilweise aktiv${NC} (aktuelle Shell geschuetzt, aber nicht alle Startpfade)"
+            echo -e "    ${YELLOW}Teilweise aktiv${NC} (aktuelle Shell geschützt, aber nicht alle Startpfade)"
             ;;
         reload_needed)
-            echo -e "    ${YELLOW}Neu laden noetig${NC} (Konfiguration aktiv, aktuelle Shell noch nicht neu geladen)"
+            echo -e "    ${YELLOW}Neu laden nötig${NC} (Konfiguration aktiv, aktuelle Shell noch nicht neu geladen)"
             ;;
         env_conflict)
             echo -e "    ${YELLOW}BASH_ENV-Konflikt${NC} (anderer Loader gesetzt, AI Agent Secure nicht global aktiv)"
             ;;
         repair_needed)
-            echo -e "    ${RED}Reparatur noetig${NC} (.bashrc/BASH_ENV oder Runtime-Dateien unvollstaendig)"
+            echo -e "    ${RED}Reparatur nötig${NC} (.bashrc/BASH_ENV oder Runtime-Dateien unvollständig)"
             ;;
         disabled)
             echo -e "    ${YELLOW}Deaktiviert${NC}"
@@ -74,15 +74,16 @@ do_status() {
         echo "    Delete:   ${SHELL_SECURE_DELETE_PROTECT:-true}"
         echo "    Git:      ${SHELL_SECURE_GIT_PROTECT:-true}"
         echo "    GitFlood: ${SHELL_SECURE_GIT_FLOOD_PROTECT:-true}"
+        echo "    GitLeak:  ${SHELL_SECURE_GIT_LEAK_PROTECT:-true} (${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}s)"
         echo "    HTTP/API: ${SHELL_SECURE_HTTP_API_PROTECT:-true}"
         echo "    PS-UTF8:  ${SHELL_SECURE_PS_ENCODING_PROTECT:-true}"
         echo ""
-        echo -e "  ${BOLD}Geschuetzte Verzeichnisse:${NC}"
+        echo -e "  ${BOLD}Geschützte Verzeichnisse:${NC}"
         for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
             echo "    $dir"
         done
         echo ""
-        echo -e "  ${BOLD}Erlaubte Loeschziele:${NC} ${#SHELL_SECURE_SAFE_TARGETS[@]} Eintraege"
+        echo -e "  ${BOLD}Erlaubte Löschziele:${NC} ${#SHELL_SECURE_SAFE_TARGETS[@]} Einträge"
         echo -e "  ${DIM}(node_modules, dist, build, .cache, ...)${NC}"
     fi
 
@@ -121,7 +122,7 @@ do_test() {
 
     if ! is_session_active; then
         err "AI Agent Secure ist nicht aktiv in dieser Session."
-        info "Fuehre aus: source ~/.bashrc"
+        info "Führe aus: source ~/.bashrc"
         echo ""
         return 1
     fi
@@ -135,7 +136,7 @@ do_test() {
     fi
 
     if [ -z "$test_dir" ]; then
-        err "Keine geschuetzten Bereiche konfiguriert."
+        err "Keine geschützten Bereiche konfiguriert."
         return 1
     fi
 
@@ -166,7 +167,7 @@ do_test() {
     command mkdir -p "$safe_dir"
     echo "test" > "$safe_dir/package.json"
     if rm -rf "$safe_dir" 2>&1 | grep -q "BLOCKIERT"; then
-        err "FEHLGESCHLAGEN - Safe target wurde faelschlich blockiert!"
+        err "FEHLGESCHLAGEN - Safe target wurde fälschlich blockiert!"
     else
         ok "Safe target (node_modules) wurde durchgelassen"
     fi

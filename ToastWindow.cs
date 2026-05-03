@@ -11,9 +11,9 @@ using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using WinForms = System.Windows.Forms;
 
-// Windows 10/11 unterdrueckt Balloons oft still (Focus Assist, fehlende
-// AUMID-Bindung). Ein eigenes, topmost WPF-Fenster ist verlaesslich und
-// wird von Windows-Einstellungen nicht gefiltert.
+// Windows 10/11 often suppresses balloons silently (Focus Assist, missing
+// AUMID binding). A dedicated topmost WPF window is reliable and is not
+// filtered by Windows notification settings.
 class ToastWindow : Window
 {
     DispatcherTimer _closeTimer;
@@ -84,16 +84,16 @@ class ToastWindow : Window
         Grid.SetColumn(stack, 1);
         grid.Children.Add(stack);
 
-        // X-Button rechts oben schliesst nur den Toast, ohne die Klick-Aktion
-        // des Fensters auszuloesen (Event wird als Handled markiert).
+        // The top-right X button closes only the toast without triggering the
+        // window click action (the event is marked handled).
         var closeX = new TextBlock
         {
             Text = "\u2715",
             FontSize = 13,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Color.FromRgb(130, 130, 160)),
-            // Transparenter Background ist notwendig, sonst erfassen die Padding-
-            // Flaechen keine Mouse-Events (WPF hit-testing bei null-Background).
+            // Transparent background is required; otherwise padding areas do not
+            // receive mouse events (WPF hit-testing with null background).
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Top,
@@ -130,7 +130,7 @@ class ToastWindow : Window
 
         if (!IsVisible) Show();
 
-        // Positionieren nach Layout-Pass, damit ActualWidth/Height korrekt sind
+        // Position after the layout pass so ActualWidth/Height are correct.
         Dispatcher.BeginInvoke((Action)delegate
         {
             var work = WinForms.Screen.PrimaryScreen.WorkingArea;

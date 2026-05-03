@@ -12,26 +12,30 @@ using System.Text.RegularExpressions;
 class ShellSecureConfig
 {
     public bool Enabled = true;
-    // Kategorie-Toggles. Defaulten auf true, damit aeltere Configs ohne
-    // diese Keys genau so verhalten wie vorher (voller Schutz).
+    // Category toggles. Default to true so older configs without these keys keep
+    // their previous behavior (full protection).
     public bool DeleteProtect = true;
     public bool GitProtect = true;
-    // Git-Flood-Schutz: limitiert Netzwerk-git-Calls (push/pull/fetch/clone/
-    // ls-remote) auf max Threshold pro Window-Sekunden. Schuetzt vor
-    // durchdrehenden Agents, die Auth-Prompts spammen.
+    // Git flood protection: limit network git calls (push/pull/fetch/clone/
+    // ls-remote) to the max threshold per window. Protects against runaway
+    // agents that spam auth prompts.
     public bool GitFloodProtect = true;
     public int GitFloodThreshold = 4;
     public int GitFloodWindow = 60;
-    // HTTP/API-Schutz: blockt authentifizierte curl-Aufrufe mit destruktiver
-    // API-Semantik. Der Blocktext fordert explizite Nutzerfreigabe statt
-    // einen schnellen Kommando-Bypass zu bewerben.
+    // Git leak protection: warn before pushing commits that contain likely
+    // secret files or agent workspace data. The timeout is fail-closed.
+    public bool GitLeakProtect = true;
+    public int GitLeakTimeout = 60;
+    // HTTP/API protection: block authenticated curl calls with destructive API
+    // semantics. The block text asks for explicit user permission instead of
+    // advertising a quick command bypass.
     public bool HttpApiProtect = true;
-    // PowerShell-UTF-8-Schutz: blockt PS-Writes ohne -Encoding utf8.
-    // Schuetzt vor dem haeufigen Agent-Bug, in dem "Set-Content" oder ">"
-    // ohne explizite Encoding-Angabe Quellcode mit UTF-16-BOM korrumpiert.
+    // PowerShell UTF-8 protection: block PS writes without -Encoding utf8.
+    // Guards against the common agent bug where "Set-Content" or ">" corrupts
+    // source code with UTF-16 BOM when no explicit encoding is supplied.
     public bool PsEncodingProtect = true;
-    // Sprache fuer Block-Messages und GUI-Texte (en/de). Default = en, alles
-    // andere ausser exakt "de" wird auf "en" zurueckgesetzt.
+    // Language for block messages and GUI text (en/de). Default = en; anything
+    // other than exact "de" falls back to "en".
     public string Language = "en";
     public List<string> ProtectedDirs = new List<string>();
     public List<string> SafeTargets = new List<string>();
@@ -73,6 +77,8 @@ class ShellSecureConfig
         GitFloodProtect = true;
         GitFloodThreshold = 4;
         GitFloodWindow = 60;
+        GitLeakProtect = true;
+        GitLeakTimeout = 60;
         HttpApiProtect = true;
         PsEncodingProtect = true;
         Language = "en";
@@ -102,6 +108,14 @@ class ShellSecureConfig
             {
                 int v;
                 if (int.TryParse(mfw.Groups[1].Value, out v) && v >= 1) GitFloodWindow = v;
+            }
+            var mgl = Regex.Match(text, @"SHELL_SECURE_GIT_LEAK_PROTECT\s*=\s*(\w+)");
+            if (mgl.Success) GitLeakProtect = mgl.Groups[1].Value == "true";
+            var mgt = Regex.Match(text, @"SHELL_SECURE_GIT_LEAK_TIMEOUT\s*=\s*(\d+)");
+            if (mgt.Success)
+            {
+                int v;
+                if (int.TryParse(mgt.Groups[1].Value, out v) && v >= 1) GitLeakTimeout = v;
             }
             var mha = Regex.Match(text, @"SHELL_SECURE_HTTP_API_PROTECT\s*=\s*(\w+)");
             if (mha.Success) HttpApiProtect = mha.Groups[1].Value == "true";
@@ -189,6 +203,8 @@ class ShellSecureConfig
             sb.AppendLine("SHELL_SECURE_GIT_FLOOD_PROTECT=" + (GitFloodProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_GIT_FLOOD_THRESHOLD=" + GitFloodThreshold);
             sb.AppendLine("SHELL_SECURE_GIT_FLOOD_WINDOW=" + GitFloodWindow);
+            sb.AppendLine("SHELL_SECURE_GIT_LEAK_PROTECT=" + (GitLeakProtect ? "true" : "false"));
+            sb.AppendLine("SHELL_SECURE_GIT_LEAK_TIMEOUT=" + GitLeakTimeout);
             sb.AppendLine("SHELL_SECURE_HTTP_API_PROTECT=" + (HttpApiProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_PS_ENCODING_PROTECT=" + (PsEncodingProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_LANGUAGE=" + (Language == "de" ? "de" : "en"));
@@ -212,7 +228,7 @@ class ShellSecureConfig
         }
     }
 
-    // Gibt die letzten `count` Zeilen zurueck, neueste zuerst.
+    // Return the last `count` log lines, newest first.
     public List<string> GetLogLines(int count)
     {
         if (!File.Exists(LogPath)) return new List<string>();

@@ -1,32 +1,29 @@
 # Read this file first when changing git destructive guards or the flood limiter.
-# Purpose: all git wrappers - stash / reset --hard / clean / checkout / switch /
-#          restore / branch -D destructive guards plus the network-call flood
-#          limiter. The git() function dispatches between layers based on
-#          GIT_PROTECT and GIT_FLOOD_PROTECT toggles.
-# Scope: relies on protection-core.sh helpers (block rendering, toggle helpers).
+# Purpose: all git wrappers - destructive guards, network-call flood limiter,
+#          and dispatch into protection-git-leak.sh for push leak checks.
+# Scope: relies on protection-core.sh helpers and protection-git-leak.sh for
+#        push leak detection.
 
 # ── git stash wrapper ───────────────────────────────────────
-# Hintergrund: Agents rufen "git stash" oft ohne sauberen Stash-Lifecycle auf
-# und begraben dadurch uncommittete Arbeit aus parallelen Sessions. Noch
-# gefaehrlicher ist ein verkettetes "git stash push ; git stash pop": wenn push
-# blockiert wird, kann pop sonst einen alten Stash ueber aktuelle Arbeit legen.
-# Deshalb bleiben nur Inspektionsbefehle (list/show/help) und "create" direkt
-# erlaubt. Mutierende oder unbekannte Stash-Subkommandos brauchen den expliziten
-# Bypass "command git stash ..." oder vorher einen WIP-Commit.
+# Background: agents often run "git stash" without a clean stash lifecycle and
+# bury uncommitted work from parallel sessions. A chained
+# "git stash push ; git stash pop" is even more dangerous: when push is blocked,
+# pop can still apply an old stash over current work. Therefore only inspection
+# commands (list/show/help) and "create" are allowed directly. Mutating or
+# unknown stash subcommands require the explicit "command git stash ..." bypass
+# or a prior WIP commit.
 
-# Pre-Command-Optionen werden ueber diese globale Array-Variable
-# durchgereicht, damit der Dirty-Check fuer "git -C /pfad stash" im
-# korrekten Repo laeuft (und nicht im CWD). Nur waehrend eines git()-
-# Aufrufs befuellt; sonst leer.
+# Pre-command options are passed through this global array so the dirty check
+# for "git -C /path stash" runs in the correct repo (not the CWD). It is filled
+# only during a git() invocation; otherwise empty.
 declare -ag _ss_git_pre_opts=()
 
 _ss_stash_would_capture() {
     local porcelain
-    # Nicht in einem Repo -> nichts zu stashen -> nicht blocken.
-    # Pre-Opts ("${_ss_git_pre_opts[@]}") stellen sicher, dass -C/--git-dir
-    # wirken. Bei git-internen Fehlern (kein HEAD, Lock, etc.) kehren wir
-    # konservativ mit "nicht blocken" zurueck - git stash wuerde in diesen
-    # Faellen ohnehin selbst fehlschlagen.
+    # Not in a repo -> nothing to stash -> do not block. Pre-opts
+    # ("${_ss_git_pre_opts[@]}") ensure -C/--git-dir take effect. On git-internal
+    # errors (no HEAD, lock, etc.) return "do not block" conservatively; git
+    # stash would fail by itself in those cases.
     command git "${_ss_git_pre_opts[@]}" rev-parse --git-dir >/dev/null 2>&1 || return 1
     porcelain=$(command git "${_ss_git_pre_opts[@]}" status --porcelain 2>/dev/null) || return 1
     [ -z "$porcelain" ] && return 1
@@ -42,9 +39,8 @@ _ss_stash_would_capture() {
 
     $has_tracked && return 0
 
-    # Reine Untracked-Dateien werden nur mit -u/-a tatsaechlich gestasht.
-    # Es reicht, die Stash-Args (nach dem "stash"-Token) zu untersuchen;
-    # die kommen hier als "$@" herein.
+    # Pure untracked files are actually stashed only with -u/-a. It is enough to
+    # inspect stash args (after the "stash" token); they arrive here as "$@".
     if $has_untracked; then
         local a
         for a in "$@"; do
@@ -98,8 +94,8 @@ _ss_block_stash() {
 
     _ss_git_block_header "$(_ss_t block.layer.git)" "$full" "$repo_root"
     if [ "$lang" = "de" ]; then
-        echo "  $(_ss_t block.label.reason)git stash mit uncommitteten Aenderungen im Worktree." >&2
-        echo "                 Stashes werden haeufig nicht zurueck-gepoppt, und" >&2
+        echo "  $(_ss_t block.label.reason)git stash mit uncommitteten Änderungen im Worktree." >&2
+        echo "                 Stashes werden häufig nicht zurück-gepoppt, und" >&2
         echo "                 parallele Sessions verlieren so ihre Arbeit irreversibel." >&2
     else
         echo "  $(_ss_t block.label.reason)git stash with uncommitted changes in the worktree." >&2
@@ -110,8 +106,8 @@ _ss_block_stash() {
     echo "  $(_ss_t block.section.better_way)" >&2
     if [ "$lang" = "de" ]; then
         echo "    git add -A && git commit -m \"WIP: <kurze beschreibung>\"" >&2
-        echo "    - Arbeit ist sauber im Reflog, kein Datenverlust moeglich." >&2
-        echo "    - Spaeter bei Bedarf: 'git reset --soft HEAD~1' zum Aufheben." >&2
+        echo "    - Arbeit ist sauber im Reflog, kein Datenverlust möglich." >&2
+        echo "    - Später bei Bedarf: 'git reset --soft HEAD~1' zum Aufheben." >&2
     else
         echo "    git add -A && git commit -m \"WIP: <short description>\"" >&2
         echo "    - The work lives safely in the reflog; no data loss." >&2
@@ -119,27 +115,27 @@ _ss_block_stash() {
     fi
     _ss_block_rule
     _ss_git_manual_release "$lang" \
-        "Nur ausserhalb von Agent-Laeufen und nach sauberem WIP-Commit bewusst ausfuehren." \
+        "Nur außerhalb von Agent-Läufen und nach sauberem WIP-Commit bewusst ausführen." \
         "Only run outside of agent runs and after a clean WIP commit."
     _ss_block_rule
     echo "" >&2
-    # 4-Feld-Format analog _ss_block, damit die GUI einheitlich parsen kann:
+    # Four-field format analogous to _ss_block so the GUI can parse consistently:
     # BLOCKED | <cmd> | <target> | <reason>
     _ss_log "BLOCKED | $full | $repo_root | $([ "$lang" = "de" ] && printf '%s' "git stash auf dirty worktree" || printf '%s' "git stash on dirty worktree")"
     return 1
 }
 
 # ── git reset --hard wrapper ────────────────────────────────
-# Hintergrund: "git reset --hard" verwirft tracked Worktree-Aenderungen
-# OHNE Reflog-Eintrag fuer den Worktree-Zustand. Wer bei dirty Worktree
-# resetet, kann uncommittete Arbeit nicht zurueckholen. Untracked-Dateien
-# bleiben erhalten -> nur tracked-Zeilen aus "git status --porcelain"
-# gelten als zerstoerend. Clean Worktree wird nicht blockiert, da
-# committete Historie ueber Reflog 90 Tage rekonstruierbar bleibt.
+# Background: "git reset --hard" discards tracked worktree changes WITHOUT a
+# Reflog entry for the worktree state. Resetting a dirty worktree can lose
+# uncommitted work permanently. Untracked files remain, so only tracked lines
+# from "git status --porcelain" count as destructive. A clean worktree is not
+# blocked because committed history stays reconstructable through Reflog for
+# about 90 days.
 
-# True wenn die uebergebenen reset-Argumente "--hard" enthalten.
-# Der "--"-Separator markiert in git den Beginn der Pathspec; alles
-# danach ist kein Flag mehr und wird daher nicht weiter geprueft.
+# True when the given reset arguments contain "--hard". The "--" separator marks
+# the start of pathspecs in git; everything after it is no longer a flag and is
+# not checked further.
 _ss_reset_args_have_hard() {
     local arg
     for arg in "$@"; do
@@ -156,9 +152,9 @@ _ss_reset_hard_would_destroy() {
     command git "${_ss_git_pre_opts[@]}" rev-parse --git-dir >/dev/null 2>&1 || return 1
     porcelain=$(command git "${_ss_git_pre_opts[@]}" status --porcelain 2>/dev/null) || return 1
     [ -z "$porcelain" ] && return 1
-    # Untracked-Zeilen ("??") wuerden von --hard nicht angefasst, also nicht
-    # blocken. Jede andere Porcelain-Zeile bedeutet tracked Modifikation oder
-    # staged Aenderung, die ohne Reflog-Sicherheit verloren ginge.
+    # Untracked lines ("??") are not touched by --hard, so do not block. Any
+    # other porcelain line means a tracked modification or staged change that
+    # would be lost without Reflog safety.
     local line
     while IFS= read -r line; do
         [ -z "$line" ] && continue
@@ -179,8 +175,8 @@ _ss_block_reset_hard() {
 
     _ss_git_block_header "$(_ss_t block.layer.git)" "$full" "$repo_root"
     if [ "$lang" = "de" ]; then
-        echo "  $(_ss_t block.label.reason)git reset --hard mit uncommitteten Aenderungen im Worktree." >&2
-        echo "                 Tracked Modifikationen waeren ohne Reflog-Eintrag verloren," >&2
+        echo "  $(_ss_t block.label.reason)git reset --hard mit uncommitteten Änderungen im Worktree." >&2
+        echo "                 Tracked Modifikationen wären ohne Reflog-Eintrag verloren," >&2
         echo "                 weil --hard den Worktree-Zustand nicht im Reflog sichert." >&2
     else
         echo "  $(_ss_t block.label.reason)git reset --hard with uncommitted changes in the worktree." >&2
@@ -191,7 +187,7 @@ _ss_block_reset_hard() {
     echo "  $(_ss_t block.section.better_way)" >&2
     if [ "$lang" = "de" ]; then
         echo "    git add -A && git commit -m \"WIP: <kurze beschreibung>\"" >&2
-        echo "    - Arbeit ist sauber im Reflog, kein Datenverlust moeglich." >&2
+        echo "    - Arbeit ist sauber im Reflog, kein Datenverlust möglich." >&2
         echo "    - Danach 'git reset --hard <commit>' aus sauberem Stand." >&2
     else
         echo "    git add -A && git commit -m \"WIP: <short description>\"" >&2
@@ -200,7 +196,7 @@ _ss_block_reset_hard() {
     fi
     _ss_block_rule
     _ss_git_manual_release "$lang" \
-        "Nur ausserhalb von Agent-Laeufen und nach bewusster Pruefung ausfuehren." \
+        "Nur außerhalb von Agent-Läufen und nach bewusster Prüfung ausführen." \
         "Only run outside of agent runs and after deliberate review."
     _ss_block_rule
     echo "" >&2
@@ -209,17 +205,16 @@ _ss_block_reset_hard() {
 }
 
 # ── git clean wrapper ───────────────────────────────────────
-# Hintergrund: "git clean -f" loescht untracked Dateien dauerhaft. Untracked
-# bedeutet "nicht in der Historie und nicht im Reflog" - eine versehentliche
-# Loeschung ist nur ueber Backups rekonstruierbar. Wir blocken nur, wenn
-# tatsaechlich Loesch-Modus aktiv ist (-f gesetzt, kein -n/--dry-run und kein
-# -i/--interactive) UND ein "git clean -n" tatsaechlich Eintraege auflisten
-# wuerde. Dadurch bleiben harmlose No-ops und Dry-Runs ohne Block-Noise.
+# Background: "git clean -f" permanently deletes untracked files. Untracked
+# means "not in history and not in Reflog"; accidental deletion is recoverable
+# only from backups. Block only when delete mode is actually active (-f set, no
+# -n/--dry-run, and no -i/--interactive) AND "git clean -n" would actually list
+# entries. This keeps harmless no-ops and dry-runs free of block noise.
 
-# True wenn die uebergebenen clean-Argumente einen tatsaechlichen
-# Loeschdurchlauf erzwingen. Kombinierte Kurz-Flags ("-fd", "-fdx", "-nf")
-# werden Zeichen-fuer-Zeichen ausgewertet; --interactive prompts the user
-# und gilt deshalb hier als "safe", nicht als silent-destruktiv.
+# True when the given clean arguments force an actual delete run. Combined short
+# flags ("-fd", "-fdx", "-nf") are evaluated character by character;
+# --interactive prompts the user and is therefore considered "safe" here, not
+# silently destructive.
 _ss_clean_args_destructive() {
     local arg
     local force=false safe=false
@@ -247,10 +242,10 @@ _ss_clean_args_destructive() {
 
 _ss_clean_would_destroy() {
     command git "${_ss_git_pre_opts[@]}" rev-parse --git-dir >/dev/null 2>&1 || return 1
-    # "git clean -n" mit den Original-Flags (-d/-x/-X/-e ...) zeigt exakt das,
-    # was die Echtversion loeschen wuerde. Leere Ausgabe -> nichts zu loeschen
-    # -> kein Block. Wir leiten stderr nach /dev/null, damit ungueltige Flag-
-    # Kombinationen sich wie gehabt von der echten Ausfuehrung melden lassen.
+    # "git clean -n" with the original flags (-d/-x/-X/-e ...) shows exactly
+    # what the real command would delete. Empty output -> nothing to delete ->
+    # no block. Redirect stderr to /dev/null so invalid flag combinations are
+    # still reported by the real execution as before.
     local out
     out=$(command git "${_ss_git_pre_opts[@]}" clean -n "$@" 2>/dev/null) || return 1
     [ -n "$out" ]
@@ -265,9 +260,9 @@ _ss_block_clean() {
 
     _ss_git_block_header "$(_ss_t block.layer.git)" "$full" "$repo_root"
     if [ "$lang" = "de" ]; then
-        echo "  $(_ss_t block.label.reason)git clean wuerde untracked Dateien dauerhaft loeschen." >&2
+        echo "  $(_ss_t block.label.reason)git clean würde untracked Dateien dauerhaft löschen." >&2
         echo "                 Untracked Dateien sind weder in der Historie noch im" >&2
-        echo "                 Reflog - Wiederherstellung waere nur ueber Backups moeglich." >&2
+        echo "                 Reflog - Wiederherstellung wäre nur über Backups möglich." >&2
     else
         echo "  $(_ss_t block.label.reason)git clean would permanently delete untracked files." >&2
         echo "                 Untracked files are not in history nor in the reflog -" >&2
@@ -276,9 +271,9 @@ _ss_block_clean() {
     _ss_block_rule
     echo "  $(_ss_t block.section.better_way)" >&2
     if [ "$lang" = "de" ]; then
-        echo "    git clean -nfd            # zeigt nur, was geloescht wuerde" >&2
+        echo "    git clean -nfd            # zeigt nur, was gelöscht würde" >&2
         echo "    git status --ignored      # listet untracked und ignored Dateien" >&2
-        echo "    Anschliessend gezielt einzelne Dateien committen oder per 'rm' entfernen." >&2
+        echo "    Anschließend gezielt einzelne Dateien committen oder per 'rm' entfernen." >&2
     else
         echo "    git clean -nfd            # only show what would be removed" >&2
         echo "    git status --ignored      # list untracked and ignored files" >&2
@@ -286,7 +281,7 @@ _ss_block_clean() {
     fi
     _ss_block_rule
     _ss_git_manual_release "$lang" \
-        "Nur ausserhalb von Agent-Laeufen und nach Pruefung mit -nfd ausfuehren." \
+        "Nur außerhalb von Agent-Läufen und nach Prüfung mit -nfd ausführen." \
         "Only run outside of agent runs and after reviewing with -nfd."
     _ss_block_rule
     echo "" >&2
@@ -295,17 +290,16 @@ _ss_block_clean() {
 }
 
 # ── git checkout / switch / restore wrappers ────────────────
-# Hintergrund: alle drei Subkommandos koennen Worktree-Inhalte mit alten
-# Versionen aus Index/HEAD/Tree ueberschreiben. Die haeufigsten silent-
-# overwrite-Vektoren sind "git checkout -f", "git checkout -- <path>",
-# "git switch --discard-changes" und "git restore <path>" (default-Mode).
-# Wir blocken konservativ: tracked Modifikation im Worktree + destruktive
-# Form -> Block. Branch-Switch ohne -f/--force/--discard-changes laesst
-# Git selbst sicher abbrechen, also nicht blocken.
+# Background: all three subcommands can overwrite worktree content with older
+# versions from index/HEAD/tree. The most common silent-overwrite vectors are
+# "git checkout -f", "git checkout -- <path>", "git switch --discard-changes",
+# and "git restore <path>" (default mode). Block conservatively: tracked
+# worktree modification + destructive form -> block. A branch switch without
+# -f/--force/--discard-changes lets git abort safely by itself, so do not block.
 
-# Shared helper: True wenn der Worktree tracked Modifikationen hat
-# (Untracked-only "??"-Zeilen zaehlen nicht). Genau die Bedingung,
-# unter der checkout/switch/restore silent ueberschreiben wuerden.
+# Shared helper: true when the worktree has tracked modifications
+# (untracked-only "??" lines do not count). This is exactly the condition where
+# checkout/switch/restore would silently overwrite.
 _ss_worktree_has_tracked_changes() {
     local porcelain
     command git "${_ss_git_pre_opts[@]}" rev-parse --git-dir >/dev/null 2>&1 || return 1
@@ -322,13 +316,12 @@ _ss_worktree_has_tracked_changes() {
     return 1
 }
 
-# True wenn checkout-Args eine eindeutig destruktive Form haben:
-# -f / --force, "--" Pathspec-Separator, oder "." als positionales Arg.
-# Reine Branch-Switches (git checkout main, -b new, -B existing, --orphan)
-# triggern nicht; Git refuses ohnehin, falls dirty Modifikationen kollidieren.
-# Bewusste Luecke: "git checkout file.txt" ohne "--" wird nicht erkannt,
-# weil die Branch-vs-Pathspec-Aufloesung Repo-Zustand braucht. Wer
-# zuverlaessigen Schutz will, nutzt "git restore" (wird erfasst).
+# True when checkout args have an unambiguously destructive form: -f/--force,
+# "--" pathspec separator, or "." as a positional arg. Pure branch switches
+# (git checkout main, -b new, -B existing, --orphan) do not trigger; git refuses
+# anyway if dirty modifications collide. Deliberate gap: "git checkout file.txt"
+# without "--" is not recognized because branch-vs-pathspec resolution needs
+# repo state. Use "git restore" for reliable coverage; it is detected.
 _ss_checkout_args_destructive() {
     local arg past_dashdash=false
     for arg in "$@"; do
@@ -344,9 +337,9 @@ _ss_checkout_args_destructive() {
     return 1
 }
 
-# True wenn switch-Args eine destruktive Form haben:
-# -f / --force / --discard-changes. "--merge" laesst Git Konflikte halten,
-# ist also nicht silent-destruktiv und triggert nicht.
+# True when switch args have a destructive form: -f/--force/--discard-changes.
+# "--merge" lets git preserve conflicts, so it is not silently destructive and
+# does not trigger.
 _ss_switch_args_destructive() {
     local arg
     for arg in "$@"; do
@@ -358,10 +351,10 @@ _ss_switch_args_destructive() {
     return 1
 }
 
-# True wenn restore den Worktree modifiziert. Default-Mode ist Worktree;
-# nur "--staged" ohne "--worktree"/"-W" laesst den Worktree unangetastet
-# (reine Index-Operation). Mindestens ein positionaler Pathspec muss
-# vorhanden sein, sonst wuerde restore ohnehin fehlschlagen.
+# True when restore modifies the worktree. Default mode is worktree; only
+# "--staged" without "--worktree"/"-W" leaves the worktree untouched (pure index
+# operation). At least one positional pathspec must be present, otherwise
+# restore would fail by itself.
 _ss_restore_args_touch_worktree() {
     local arg
     local explicit_staged=false explicit_worktree=false has_pathspec=false past_dashdash=false
@@ -387,10 +380,10 @@ _ss_restore_args_touch_worktree() {
     return 0
 }
 
-# Generischer Block fuer worktree-ueberschreibende Subkommandos. Eine
-# gemeinsame Diagnose haelt die Botschaft konsistent und vermeidet drei
-# parallele copy-paste-Versionen. Subkommando-Name wird als erstes Arg
-# uebergeben, damit Diagnose und Log-Eintrag korrekt benannt sind.
+# Generic block for worktree-overwriting subcommands. A shared diagnostic keeps
+# the message consistent and avoids three parallel copy-paste versions. The
+# subcommand name is passed as the first arg so diagnostics and log entries are
+# named correctly.
 _ss_block_worktree_overwrite() {
     local subcommand="$1"; shift
     local full="${_ss_git_command_name:-git} $*"
@@ -401,9 +394,9 @@ _ss_block_worktree_overwrite() {
 
     _ss_git_block_header "$(_ss_t block.layer.git)" "$full" "$repo_root"
     if [ "$lang" = "de" ]; then
-        echo "  $(_ss_t block.label.reason)git $subcommand wuerde tracked Worktree-Aenderungen ueberschreiben." >&2
-        echo "                 Diese Aenderungen sind nicht im Reflog gesichert - eine" >&2
-        echo "                 Wiederherstellung waere ohne Backup nicht moeglich." >&2
+        echo "  $(_ss_t block.label.reason)git $subcommand würde tracked Worktree-Änderungen überschreiben." >&2
+        echo "                 Diese Änderungen sind nicht im Reflog gesichert - eine" >&2
+        echo "                 Wiederherstellung wäre ohne Backup nicht möglich." >&2
     else
         echo "  $(_ss_t block.label.reason)git $subcommand would overwrite tracked worktree changes." >&2
         echo "                 These changes are not stored in the reflog - recovery" >&2
@@ -414,7 +407,7 @@ _ss_block_worktree_overwrite() {
     if [ "$lang" = "de" ]; then
         echo "    git status                            # zeigt aktuelle Modifikationen" >&2
         echo "    git add -A && git commit -m \"WIP\"     # sichert die Arbeit im Reflog" >&2
-        echo "    Danach $subcommand bewusst aus sauberem Stand ausfuehren." >&2
+        echo "    Danach $subcommand bewusst aus sauberem Stand ausführen." >&2
     else
         echo "    git status                            # show current modifications" >&2
         echo "    git add -A && git commit -m \"WIP\"     # save the work in the reflog" >&2
@@ -422,7 +415,7 @@ _ss_block_worktree_overwrite() {
     fi
     _ss_block_rule
     _ss_git_manual_release "$lang" \
-        "Nur ausserhalb von Agent-Laeufen und nach 'git status' bewusst ausfuehren." \
+        "Nur außerhalb von Agent-Läufen und nach 'git status' bewusst ausführen." \
         "Only run outside of agent runs and after reviewing 'git status'."
     _ss_block_rule
     echo "" >&2
@@ -431,18 +424,17 @@ _ss_block_worktree_overwrite() {
 }
 
 # ── git flood wrapper ───────────────────────────────────────
-# Hintergrund: Wenn ein Agent durchdreht, kann er innerhalb weniger Sekunden
-# dutzende push/pull/fetch-Aufrufe absetzen. Ohne Credential-Helper triggert
-# jeder davon eine Auth-Abfrage (User wird mit Passwort-Prompts ueberflutet),
-# mit Helper kann er versehentliche Push/Pull-Loops erzeugen. Wir limitieren
-# Netzwerk-git-Calls per Token-Bucket-aehnlicher Logik: maximal N Calls in
-# einem Fenster von W Sekunden, persistent ueber eine kleine State-Datei.
+# Background: when an agent spins out it can issue dozens of push/pull/fetch
+# calls within seconds. Without a credential helper, each one triggers an auth
+# prompt; with a helper, it can create accidental push/pull loops. Limit network
+# git calls with token-bucket-like logic: at most N calls in a W-second window,
+# persisted through a small state file.
 
-# True wenn das Subkommando typischerweise das Netzwerk anfasst und damit
-# auch die Auth-Pipeline triggert. Nur diese werden gezaehlt; "git status"
-# laeuft im Agent-Loop oft 20x/min und wuerde sonst dauerhaft false-positive.
-# "remote update" zaehlt nicht, weil "git remote -v" kein Netz braucht und
-# wir hier den Subkommando-Token vor "remote ..."-Argumenten sehen.
+# True when the subcommand usually touches the network and therefore triggers
+# the auth pipeline. Only these are counted; "git status" often runs 20x/min in
+# agent loops and would otherwise false-positive constantly. "remote update"
+# does not count because "git remote -v" needs no network and here we only see
+# the subcommand token before "remote ..." arguments.
 _ss_git_subcommand_is_network() {
     case "$1" in
         push|pull|fetch|clone|ls-remote)
@@ -452,19 +444,18 @@ _ss_git_subcommand_is_network() {
     return 1
 }
 
-# Liest die Rate-Log-Datei, verwirft Eintraege ausserhalb des Fensters,
-# und entscheidet ob noch Platz fuer einen weiteren Call ist. Bei
-# Erlaubnis wird der aktuelle Call angehaengt und persistiert; bei
-# Block bleibt der Counter unveraendert (sonst wuerde der naechste
-# legitime Call faelschlich rauspoppen, sobald der jetzt-gefeuerte
-# Eintrag aus dem Fenster faellt). Returncode 0 = allow, 1 = block.
+# Read the rate log file, discard entries outside the window, and decide whether
+# there is room for another call. On allow, append and persist the current call;
+# on block, leave the counter unchanged (otherwise the next legitimate call
+# could be blocked incorrectly as soon as the newly fired entry falls out of the
+# window). Return code 0 = allow, 1 = block.
 _ss_git_flood_record_and_check() {
     local subcommand="$1"
     local rate_log="$SHELL_SECURE_DIR/git-rate.log"
     local threshold="${SHELL_SECURE_GIT_FLOOD_THRESHOLD:-4}"
     local window="${SHELL_SECURE_GIT_FLOOD_WINDOW:-60}"
 
-    # Sanity: nicht-numerische / 0 / negative Werte -> harte Defaults.
+    # Sanity: non-numeric / zero / negative values -> hard defaults.
     [[ "$threshold" =~ ^[0-9]+$ ]] || threshold=4
     [[ "$window"    =~ ^[0-9]+$ ]] || window=60
     [ "$threshold" -lt 1 ] && threshold=4
@@ -490,8 +481,8 @@ _ss_git_flood_record_and_check() {
     fi
 
     if [ "$count" -ge "$threshold" ]; then
-        # Counter NICHT inkrementieren: der blockierte Call darf nicht
-        # spaeter zur Quelle weiterer Blocks werden.
+        # Do NOT increment the counter: a blocked call must not become the
+        # source of later blocks.
         printf '%s' "$kept" > "$rate_log" 2>/dev/null || true
         return 1
     fi
@@ -523,7 +514,7 @@ _ss_block_git_flood() {
     echo "  $(_ss_t block.section.better_way)" >&2
     if [ "$lang" = "de" ]; then
         echo "    git config --global credential.helper manager   # einmaliges Login statt Spam" >&2
-        echo "    Pause einlegen und pruefen, was die Aufrufe verursacht." >&2
+        echo "    Pause einlegen und prüfen, was die Aufrufe verursacht." >&2
     else
         echo "    git config --global credential.helper manager   # one-time login instead of spam" >&2
         echo "    Pause and review what is firing the calls." >&2
@@ -532,7 +523,7 @@ _ss_block_git_flood() {
     echo "  $(_ss_t block.section.tune_threshold)" >&2
     if [ "$lang" = "de" ]; then
         echo "    SHELL_SECURE_GIT_FLOOD_THRESHOLD=N    (max Calls)" >&2
-        echo "    SHELL_SECURE_GIT_FLOOD_WINDOW=Sek     (Fensterlaenge)" >&2
+        echo "    SHELL_SECURE_GIT_FLOOD_WINDOW=Sek     (Fensterlänge)" >&2
         echo "    SHELL_SECURE_GIT_FLOOD_PROTECT=false  (komplett aus)" >&2
         echo "    -> in ~/.shell-secure/config.conf setzen, Shell neu laden." >&2
     else
@@ -548,20 +539,19 @@ _ss_block_git_flood() {
 }
 
 # ── git branch -D wrapper ───────────────────────────────────
-# Hintergrund: "git branch -D <name>" loescht einen Branch auch dann, wenn
-# seine Commits nicht in HEAD eingegangen sind. Die Commits leben dann nur
-# noch im Reflog (~90 Tage Default). Genau dieser silent-orphan-Pfad ist
-# riskant. "-d" (lowercase) lehnt unmerged Branches selbst ab und ist
-# damit safe. Wir blocken nur den Force-Delete-Fall, und auch nur wenn
-# der Branch tatsaechlich unmerged in HEAD ist.
+# Background: "git branch -D <name>" deletes a branch even when its commits are
+# not merged into HEAD. Those commits then live only in Reflog (~90 days by
+# default). This silent-orphan path is the risky case. Lowercase "-d" rejects
+# unmerged branches by itself and is therefore safe. Block only force delete,
+# and only when the branch is actually unmerged into HEAD.
 
 declare -ag _ss_branch_force_delete_targets=()
 
-# Setzt _ss_branch_force_delete_targets auf die positionalen Branch-Namen
-# wenn ein Force-Delete-Modus erkannt wurde. Erkennt:
-#   -D                  (Kurzform, auch in Kombi wie -Dq oder -qD)
-#   --delete --force    (Langform-Kombination)
-# Gibt 0 zurueck wenn Force-Modus erkannt, sonst 1.
+# Set _ss_branch_force_delete_targets to positional branch names when force
+# delete mode is recognized. Recognizes:
+#   -D                  (short form, including combos like -Dq or -qD)
+#   --delete --force    (long-form combination)
+# Return 0 when force mode is recognized, otherwise 1.
 _ss_branch_args_extract_force_delete() {
     _ss_branch_force_delete_targets=()
     local arg has_capital_D=false has_long_delete=false has_long_force=false past_dashdash=false
@@ -591,19 +581,18 @@ _ss_branch_args_extract_force_delete() {
     return 1
 }
 
-# True wenn der angegebene Branch im aktuellen Repo existiert UND nicht
-# in HEAD eingegangen ist. Nicht-existente Branches: Git eigene Fehler-
-# meldung gewinnt -> nicht blocken. Repo nicht erreichbar: konservativ
-# nicht blocken; "git branch -D" wuerde dort ohnehin selbst scheitern.
+# True when the given branch exists in the current repo AND is not merged into
+# HEAD. Non-existent branches: let git's own error win -> do not block. Repo not
+# reachable: conservatively do not block; "git branch -D" would fail by itself.
 _ss_branch_target_is_unmerged() {
     local target="$1"
     [ -z "$target" ] && return 1
     command git "${_ss_git_pre_opts[@]}" rev-parse --verify --quiet "refs/heads/$target" >/dev/null 2>&1 || return 1
     local merged
     merged=$(command git "${_ss_git_pre_opts[@]}" branch --merged HEAD 2>/dev/null) || return 1
-    # Eintraege haben das Format "  branch" oder "* branch"; eine exakte
-    # Zeilen-Pruefung verhindert, dass "feature-x" ein Praefix-Match auf
-    # "feature-x-y" produziert. Punkt im Branch-Namen wird literal escaped.
+    # Entries have format "  branch" or "* branch"; an exact line check prevents
+    # "feature-x" from prefix-matching "feature-x-y". Dots in branch names are
+    # escaped literally.
     local target_re="${target//./\\.}"
     if grep -qE "^[* ]+${target_re}$" <<<"$merged"; then
         return 1
@@ -621,7 +610,7 @@ _ss_block_branch_force_delete() {
 
     _ss_git_block_header "$(_ss_t block.layer.git)" "$full" "$repo_root" "$target"
     if [ "$lang" = "de" ]; then
-        echo "  $(_ss_t block.label.reason)git branch -D wuerde nicht gemergte Commits aus '$target' verlieren." >&2
+        echo "  $(_ss_t block.label.reason)git branch -D würde nicht gemergte Commits aus '$target' verlieren." >&2
         echo "                 Die Commits leben danach nur noch im Reflog (~90 Tage Default)." >&2
     else
         echo "  $(_ss_t block.label.reason)git branch -D would orphan unmerged commits from '$target'." >&2
@@ -632,7 +621,7 @@ _ss_block_branch_force_delete() {
     if [ "$lang" = "de" ]; then
         echo "    git log --oneline ${target} --not HEAD     # zeigt was verloren ginge" >&2
         echo "    git branch -d ${target}                    # nur wenn merged -> safe" >&2
-        echo "    Falls bewusst entfernen: erst log pruefen, dann -D explizit ausfuehren." >&2
+        echo "    Falls bewusst entfernen: erst log prüfen, dann -D explizit ausführen." >&2
     else
         echo "    git log --oneline ${target} --not HEAD     # show what would be lost" >&2
         echo "    git branch -d ${target}                    # only if merged -> safe" >&2
@@ -640,7 +629,7 @@ _ss_block_branch_force_delete() {
     fi
     _ss_block_rule
     _ss_git_manual_release "$lang" \
-        "Nur ausserhalb von Agent-Laeufen und nach git log Pruefung verwenden." \
+        "Nur außerhalb von Agent-Läufen und nach git log Prüfung verwenden." \
         "Only run outside of agent runs and after reviewing the git log."
     _ss_block_rule
     echo "" >&2
@@ -658,7 +647,7 @@ _ss_block_stash_mutation() {
     _ss_git_block_header "$(_ss_t block.layer.git)" "$full" "$repo_root"
     if [ "$lang" = "de" ]; then
         echo "  $(_ss_t block.label.reason)Mutierendes git-stash-Kommando ohne expliziten Bypass." >&2
-        echo "                 Stash-Eintraege koennen alte Session-Zustaende ueber" >&2
+        echo "                 Stash-Einträge können alte Session-Zustände über" >&2
         echo "                 aktuelle Arbeit legen oder gespeicherte Arbeit entfernen." >&2
     else
         echo "  $(_ss_t block.label.reason)Mutating git-stash command without explicit bypass." >&2
@@ -670,7 +659,7 @@ _ss_block_stash_mutation() {
     if [ "$lang" = "de" ]; then
         echo "    git stash list" >&2
         echo "    git stash show --stat stash@{n}" >&2
-        echo "    Erst aktuellen Stand committen, dann Stash gezielt pruefen/anwenden." >&2
+        echo "    Erst aktuellen Stand committen, dann Stash gezielt prüfen/anwenden." >&2
     else
         echo "    git stash list" >&2
         echo "    git stash show --stat stash@{n}" >&2
@@ -686,19 +675,20 @@ _ss_block_stash_mutation() {
     return 1
 }
 
-# Pre-Command-Optionen von Git (Doku: "git --help" -> OPTIONS).
-# Optionen mit SEPARATEM Argument (verbrauchen "$1" und "$2"):
+# Git pre-command options (docs: "git --help" -> OPTIONS).
+# Options with a SEPARATE argument (consume "$1" and "$2"):
 #   -C <path>, -c <name=value>, --exec-path <path>, --namespace <ref>,
 #   --super-prefix <path>, --config-env <env=name>, --work-tree <path>,
 #   --git-dir <path>
-# Optionen in =-Form ODER als Schalter sind selbststaendige Tokens.
-# Jede andere Nicht-Flag-Argument = Subkommando.
+# Options in = form OR as switches are standalone tokens.
+# Any other non-flag argument is the subcommand.
 git() {
-    # Zwei unabhaengige Schutz-Layer mit eigenen Toggles:
-    #   1) Destruktive Subkommandos (stash/reset/clean/checkout/...) -> GIT_PROTECT
-    #   2) Flood/Spam von Netzwerk-Calls (push/pull/...)              -> GIT_FLOOD_PROTECT
-    # Wenn beide aus sind, fallen wir ohne Parsing-Overhead durch.
-    if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled; then
+    # Three independent protection layers with separate toggles:
+    #   1) Destructive subcommands (stash/reset/clean/checkout/...) -> GIT_PROTECT
+    #   2) Flood/spam of network calls (push/pull/...)              -> GIT_FLOOD_PROTECT
+    #   3) Potential secret/agent-file pushes                       -> GIT_LEAK_PROTECT
+    # When all are off, pass through without parsing overhead.
+    if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled && ! _ss_git_leak_protect_enabled; then
         command git "$@"
         return $?
     fi
@@ -730,10 +720,10 @@ git() {
         esac
     done
 
-    # Flood-Check laeuft VOR den destruktiven Subkommando-Guards. Er ist
-    # unabhaengig vom GIT_PROTECT-Toggle: ein Nutzer, der die destruktive
-    # Schutzschicht abdreht, kann den Flood-Schutz separat aktiv lassen
-    # (z. B. Agent-Setups, in denen rebase/reset bewusst frei sein sollen).
+    # Flood check runs BEFORE destructive subcommand guards. It is independent
+    # from the GIT_PROTECT toggle: a user who disables the destructive layer can
+    # keep flood protection active separately (for agent setups where
+    # rebase/reset should intentionally stay free).
     if _ss_git_flood_protect_enabled && _ss_git_subcommand_is_network "$sub"; then
         if ! _ss_git_flood_record_and_check "$sub"; then
             _ss_block_git_flood "$sub" "$@"
@@ -741,16 +731,26 @@ git() {
         fi
     fi
 
-    # Ab hier nur noch destruktive Subkommando-Guards. Wenn der Toggle
-    # aus ist, ueberspringen wir sie komplett und reichen den Call durch.
+    # Push leak detection is independent from the destructive Git layer. A user
+    # may disable stash/reset guards while keeping push leak warnings active.
+    if _ss_git_leak_protect_enabled && [ "$sub" = "push" ]; then
+        _ss_git_pre_opts=("${pre_opts[@]}")
+        if ! _ss_git_leak_guard_push "$@"; then
+            _ss_git_pre_opts=()
+            return 1
+        fi
+        _ss_git_pre_opts=()
+    fi
+
+    # From here on, only destructive subcommand guards remain. If the toggle is
+    # off, skip them completely and pass through.
     if ! _ss_git_protect_enabled; then
         command git "$@"
         return $?
     fi
 
-    # "stash_args" ist der Argumentvektor nach dem Subkommando-Token.
-    # Wir nutzen ihn zuerst fuer den reset-Zweig, danach faellt der Code
-    # in die bestehende stash-Behandlung.
+    # "stash_args" is the argument vector after the subcommand token. Use it
+    # first for the reset branch, then fall through into existing stash handling.
     if [ "$sub" = "reset" ]; then
         if _ss_reset_args_have_hard "${stash_args[@]}"; then
             _ss_git_pre_opts=("${pre_opts[@]}")
@@ -843,7 +843,7 @@ git() {
         return $?
     fi
 
-    # Stash-Subkommando = erstes Nicht-Flag nach "stash".
+    # Stash subcommand = first non-flag after "stash".
     local stash_sub=""
     local stash_help=false
     for tok in "${stash_args[@]}"; do
@@ -861,9 +861,9 @@ git() {
         return $?
     fi
 
-    # Schreibende Subkommandos (bare, push, save) gegen Worktree pruefen.
-    # Restore-/Ref-Kommandos (pop/apply/branch/drop/clear/store und unbekannte)
-    # blocken wir direkt: der Nutzer kann mit "command git ..." bewusst umgehen.
+    # Check writing subcommands (bare, push, save) against the worktree.
+    # Restore/ref commands (pop/apply/branch/drop/clear/store and unknown ones)
+    # are blocked directly; users can intentionally bypass with "command git ...".
     local stash_guard="mutation"
     case "$stash_sub" in
         ""|push|save)      stash_guard="capture"  ;;

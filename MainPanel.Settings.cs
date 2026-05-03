@@ -41,9 +41,9 @@ partial class MainPanel
         dot.Margin = on ? new Thickness(0, 0, 3, 0) : new Thickness(3, 0, 0, 0);
     }
 
-    // Sprachen-Picker: zwei Pill-Buttons (EN/DE) statt Toggle, weil's nicht
-    // semantisch on/off ist sondern eine Auswahl aus zwei Werten. Aktive
-    // Sprache bekommt einen helleren Akzent, inaktive bleibt gedaempft.
+    // Language picker: two pill buttons (EN/DE) instead of a toggle because the
+    // choice is not semantically on/off. The active language gets a brighter
+    // accent; the inactive one stays muted.
     Border BuildLanguageRow(string title, string hint, out Border enBtn, out Border deBtn,
         Action onPickEn, Action onPickDe)
     {
@@ -115,7 +115,7 @@ partial class MainPanel
     {
         var card = Card();
         var inner = new Grid { Margin = new Thickness(20, 18, 20, 18) };
-        // Rechter Rand fuer den Toggle - sonst ueberlappt lange Hint-Text die Pille.
+        // Right margin for the toggle; otherwise long hint text overlaps the pill.
         var left = new StackPanel { Margin = new Thickness(0, 0, 70, 0) };
         left.Children.Add(T(title, 14, TXT, true));
         var h = T(hint, 12, TXT3);
@@ -129,7 +129,7 @@ partial class MainPanel
         return card;
     }
 
-    // Number input row for tunable thresholds (Flood-Schutz). Commits on
+    // Number input row for tunable protection values. Commits on
     // Enter / LostFocus when the value is a valid integer in [min, max].
     // Invalid input gets reverted via RefreshSettings (which rebuilds the
     // page and re-syncs the textbox from the current config).
@@ -170,9 +170,13 @@ partial class MainPanel
         {
             int v;
             if (int.TryParse(captured.Text.Trim(), out v) && v >= boundMin && v <= boundMax)
+            {
                 commit(v);
-            // RefreshSettings rebuilds the page; for invalid input the new
-            // textbox shows the last persisted value, effectively reverting.
+                return;
+            }
+            // Invalid input is not persisted; reset the textbox to the last
+            // saved config value so stale text cannot linger in the UI.
+            RefreshSettings();
         };
         captured.LostFocus += delegate { tryCommit(); };
         captured.KeyDown += delegate(object sender, KeyEventArgs e)
@@ -204,9 +208,8 @@ partial class MainPanel
         stack.Children.Add(T(Loc.T("settings.subtitle"), 13, TXT2));
         stack.Children.Add(Sp(24));
 
-        // Sprachen-Picker steht oben, weil eine Aenderung den ganzen Settings-
-        // Screen sofort neu aufbaut - es fuehlt sich natuerlicher an wenn das
-        // an der Spitze sitzt.
+        // Language picker sits at the top because a change rebuilds the full
+        // settings screen immediately, which feels more natural at the top.
         stack.Children.Add(BuildLanguageRow(
             Loc.T("settings.language.title"),
             Loc.T("settings.language.hint"),
@@ -215,8 +218,8 @@ partial class MainPanel
             delegate { DoSetLanguage("de"); }));
         stack.Children.Add(Sp(24));
 
-        // Feingranulare Ein/Aus-Schalter pro Schutzart; greifen nur wenn der
-        // Master-Schalter (Dashboard Power-Button) AN ist.
+        // Fine-grained on/off switches per protection layer; they apply only
+        // when the master switch (dashboard power button) is ON.
         stack.Children.Add(T(Loc.T("settings.categories.title"), 16, TXT, true));
         var catHint = T(Loc.T("settings.categories.hint"), 12, TXT3);
         catHint.Margin = new Thickness(0, 4, 0, 0);
@@ -260,6 +263,29 @@ partial class MainPanel
         stack.Children.Add(Sp(10));
 
         stack.Children.Add(BuildExpandableToggleRow(
+            "git_leak",
+            Loc.T("settings.git_leak.title"),
+            Loc.T("settings.git_leak.hint"),
+            Detail(
+                "settings.details.git_leak.blocked.env",
+                "settings.details.git_leak.blocked.agent",
+                "settings.details.git_leak.blocked.credentials",
+                "settings.details.git_leak.blocked.timeout"),
+            Detail(
+                "settings.details.git_leak.allowed.examples",
+                "settings.details.git_leak.allowed.clean_push",
+                "settings.details.git_leak.allowed.force"),
+            out _gitLeakToggle, out _gitLeakDot, DoToggleGitLeak));
+        stack.Children.Add(Sp(10));
+
+        stack.Children.Add(BuildNumberInputRow(
+            Loc.T("settings.leak_timeout.title"),
+            Loc.T("settings.leak_timeout.hint"),
+            _cfg.GitLeakTimeout, 1, 3600,
+            out _gitLeakTimeoutInput, DoCommitGitLeakTimeout));
+        stack.Children.Add(Sp(10));
+
+        stack.Children.Add(BuildExpandableToggleRow(
             "git_flood",
             Loc.T("settings.git_flood.title"),
             Loc.T("settings.git_flood.hint"),
@@ -274,9 +300,8 @@ partial class MainPanel
             out _gitFloodToggle, out _gitFloodDot, DoToggleGitFlood));
         stack.Children.Add(Sp(10));
 
-        // Threshold/Window sind nur wirksam wenn der Flood-Toggle AN ist,
-        // bleiben aber stets editierbar - Nutzer kann Werte vorbereiten und
-        // dann den Toggle umlegen.
+        // Threshold/window apply only when the flood toggle is ON, but remain
+        // editable so users can prepare values before flipping the toggle.
         stack.Children.Add(BuildNumberInputRow(
             Loc.T("settings.flood_threshold.title"),
             Loc.T("settings.flood_threshold.hint"),
@@ -368,12 +393,14 @@ partial class MainPanel
         }
         SetToggleVisual(_deleteToggle, _deleteDot, _cfg.DeleteProtect);
         SetToggleVisual(_gitToggle, _gitDot, _cfg.GitProtect);
+        SetToggleVisual(_gitLeakToggle, _gitLeakDot, _cfg.GitLeakProtect);
         SetToggleVisual(_gitFloodToggle, _gitFloodDot, _cfg.GitFloodProtect);
         SetToggleVisual(_httpApiToggle, _httpApiDot, _cfg.HttpApiProtect);
         SetToggleVisual(_psEncodingToggle, _psEncodingDot, _cfg.PsEncodingProtect);
-        // Number inputs werden erneut von der aktuellen Config gespeist; bei
-        // ungueltiger Eingabe wirkt das wie ein Revert auf den letzten
-        // gespeicherten Wert.
+        // Number inputs are fed from current config again; after invalid input
+        // this acts like a revert to the last persisted value.
+        if (_gitLeakTimeoutInput != null)
+            _gitLeakTimeoutInput.Text = _cfg.GitLeakTimeout.ToString();
         if (_gitFloodThresholdInput != null)
             _gitFloodThresholdInput.Text = _cfg.GitFloodThreshold.ToString();
         if (_gitFloodWindowInput != null)

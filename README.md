@@ -1,12 +1,12 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.0.5` | Build `20260503.160932` | Built `2026-05-03 16:09:32 UTC`
+**Current version:** `1.1.0` | Build `20260503.213512` | Built `2026-05-03 21:35:12 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->
 
-Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — covers recursive directory deletion, dangerous git operations, runaway git rate-limiting, authenticated destructive `curl` API calls, and PowerShell UTF-8 enforcement.
+Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — covers recursive directory deletion, dangerous git operations, risky `git push` leaks, runaway git rate-limiting, authenticated destructive `curl` API calls, and PowerShell UTF-8 enforcement.
 
 ## Screenshots
 
@@ -20,17 +20,17 @@ Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — 
   <img src="screenshots/ai-agent-secure-about.png" alt="About page with version and build information" width="30%">
 </p>
 
-A `rm -rf` in the wrong directory wipes out years of work. A `git stash` on the wrong worktree silently buries uncommitted changes nobody pops back. A `git reset --hard` on dirty files leaves no Reflog trail. A `curl -X POST` with a bearer token can delete a hosted volume or database through an API. A `powershell Set-Content` without `-Encoding utf8` corrupts source files with UTF-16 BOM. A wedged agent fires `git fetch` four times a second and floods the credential prompt. AI Agent Secure intercepts all of these **before** they do damage.
+A `rm -rf` in the wrong directory wipes out years of work. A `git stash` on the wrong worktree silently buries uncommitted changes nobody pops back. A `git reset --hard` on dirty files leaves no Reflog trail. A `git push` can publish `.env`, `.claude`, private keys, or production config by accident. A `curl -X POST` with a bearer token can delete a hosted volume or database through an API. A `powershell Set-Content` without `-Encoding utf8` corrupts source files with UTF-16 BOM. A wedged agent fires `git fetch` four times a second and floods the credential prompt. AI Agent Secure intercepts all of these **before** they do damage.
 
 ### Why this exists
 
-AI coding agents (Codex, Claude Code, etc.) routinely execute shell commands on your machine — including recursive deletes, stash/reset/clean operations, remote git calls, API calls, and PowerShell writes. A [documented incident on Windows](https://community.openai.com/t/potential-destructive-command-mis-parsing-on-windows-agent-cleanup-via-cmd-c-may-delete-workspace-content-instead-of-target-folder/1376026/2) showed how `cmd /c rmdir` mis-parsing caused an agent to wipe an entire workspace instead of a temporary folder. Other failure modes are subtler: agents stash changes and forget to pop, hard-reset dirty files, spin on remote git operations, call destructive provider APIs with broad tokens, or write files through PowerShell's legacy encodings. AI Agent Secure was built to put local guardrails in front of those asymmetric-risk commands.
+AI coding agents (Codex, Claude Code, etc.) routinely execute shell commands on your machine — including recursive deletes, stash/reset/clean operations, remote git calls, API calls, and PowerShell writes. A [documented incident on Windows](https://community.openai.com/t/potential-destructive-command-mis-parsing-on-windows-agent-cleanup-via-cmd-c-may-delete-workspace-content-instead-of-target-folder/1376026/2) showed how `cmd /c rmdir` mis-parsing caused an agent to wipe an entire workspace instead of a temporary folder. Other failure modes are subtler: agents stash changes and forget to pop, hard-reset dirty files, push local secret files, spin on remote git operations, call destructive provider APIs with broad tokens, or write files through PowerShell's legacy encodings. AI Agent Secure was built to put local guardrails in front of those asymmetric-risk commands.
 
 ---
 
 ## What gets intercepted?
 
-AI Agent Secure runs the **Shell-Secure protection core** with independent layers, each with its own toggle: `SHELL_SECURE_DELETE_PROTECT`, `SHELL_SECURE_GIT_PROTECT` (plus `SHELL_SECURE_GIT_FLOOD_PROTECT` as a sub-layer), `SHELL_SECURE_HTTP_API_PROTECT`, and `SHELL_SECURE_PS_ENCODING_PROTECT`.
+AI Agent Secure runs the **Shell-Secure protection core** with independent layers, each with its own toggle: `SHELL_SECURE_DELETE_PROTECT`, `SHELL_SECURE_GIT_PROTECT`, `SHELL_SECURE_GIT_LEAK_PROTECT`, `SHELL_SECURE_GIT_FLOOD_PROTECT`, `SHELL_SECURE_HTTP_API_PROTECT`, and `SHELL_SECURE_PS_ENCODING_PROTECT`.
 
 ### 1. Delete protection
 
@@ -76,6 +76,12 @@ The git layer wraps the operations that most often cause silent uncommitted-work
 **Known gap:** `git checkout file.txt` without the `--` separator is not detected, because branch-vs-pathspec resolution depends on repo state. Use `git restore file.txt` for unambiguous restore — that path **is** caught.
 
 **`git branch -D <name>`** — blocked **only** when the named branch is unmerged into HEAD (i.e., when `git branch -d` would refuse). Force-delete on an already-merged branch produces the same result as `-d` and passes through. Long form `git branch --delete --force <name>` and combined short flags like `-Dq` are recognised.
+
+**Git Leak Protection** — separate `git push` layer that scans the commits about to leave the machine for risky file paths before the network push runs. It catches high-signal names such as `.env`, `.env.*`, accidental `.emv`, `.claude/**`, `.codex/**`, `.npmrc`, `.pypirc`, `.netrc`, private keys (`id_rsa`, `*.pem`, `*.key`, `*.p12`, `*.pfx`), service-account JSON, `credentials.*`, `secrets.*`, `agent.md` / `agend.md`, and production config names such as `config.php`, `config.*.php`, `config..php`, `wp-config.php`, or `configuration.php`.
+
+If the layer finds a match, it shows a terminal prompt. Typing `allow` within the configured timeout allows that push once; `ignore`, Enter, no TTY, or timeout blocks fail-closed. Default timeout: **60 seconds**, configurable via `SHELL_SECURE_GIT_LEAK_TIMEOUT`. Common templates such as `.env.example`, `.env.local.example`, `.env.sample`, `.env.template`, `.env.dist`, `config.example.php`, and `config.local.example.php` pass through to reduce false positives. For reviewed agent-only cases, force one push with `SHELL_SECURE_GIT_LEAK_FORCE=1 git push ...`; the bypass is logged as `FORCED | ... | git-leak | ...`.
+
+Push target detection follows the same repository and refspec shape Git sees: default `git push`, `git -C <repo> push`, `git push --repo origin main`, `git push --repo=origin HEAD:main`, explicit branch or tag refspecs, `--tags`, `--all`, and `--mirror` are checked before the network push runs. Delete pushes and `--dry-run` / `-n` pushes are skipped because they do not publish new file contents.
 
 **Git Flood Protection** — separate layer that rate-limits *network* git calls (`push`, `pull`, `fetch`, `clone`, `ls-remote`) to catch agents that spin out and hammer the auth pipeline or push/pull loop. Lives behind its own toggle `SHELL_SECURE_GIT_FLOOD_PROTECT` and stays active even when `SHELL_SECURE_GIT_PROTECT=false` (so you can keep flood protection while opting out of the destructive guards). Defaults: max **4 calls per 60 seconds**, configurable via `SHELL_SECURE_GIT_FLOOD_THRESHOLD` and `SHELL_SECURE_GIT_FLOOD_WINDOW`. Non-network subcommands (`status`, `log`, `diff`, `branch -a`, …) are never counted. State lives in `~/.shell-secure/git-rate.log` and entries older than the window are pruned automatically; blocked calls do **not** count toward the bucket so the limiter recovers cleanly.
 
@@ -219,19 +225,20 @@ Paths are normalized before comparison:
 
 - **Protected areas** — Configure folders, projects, or whole drives
 - **Whitelist** — Build artifacts like `node_modules`, `dist`, `.cache` etc. can still be deleted
-- **Per-category toggles** — Delete, Git, Git Flood, HTTP/API, and PowerShell UTF-8 layers can be flipped independently of the master switch
+- **Per-category toggles** — Delete, Git, Git Leak, Git Flood, HTTP/API, and PowerShell UTF-8 layers can be flipped independently of the master switch
 - **Git stash guard** — Blocks captures on dirty worktrees and any mutation on existing stash entries; honours `git -C /path` and `--git-dir`
 - **Git reset --hard guard** — Blocks `git reset --hard` only when uncommitted tracked changes would be lost; clean trees and `--soft` / `--mixed` resets pass through
 - **Git clean guard** — Blocks `git clean -f` only when something would actually be removed; dry-runs (`-nfd`), interactive (`-i`), and no-op runs pass through
 - **Git checkout / switch / restore guard** — Blocks the worktree-overwriting forms (`-f`, `--`, `.`, `--discard-changes`, `restore` default mode) only when tracked changes would be lost; pure branch switches and `restore --staged` always pass through
 - **Git branch -D guard** — Blocks `git branch -D <name>` only when the branch is unmerged into HEAD; force-delete on a merged branch passes through, lowercase `-d` is left to git's own safety check
+- **Git leak protection** — Warns before `git push` publishes likely secret files or agent workspace data; handles default pushes, explicit refspecs, `--repo`, `--tags`, `--all`, and `--mirror`; blocks automatically after the allow timeout and supports audited `SHELL_SECURE_GIT_LEAK_FORCE=1` for reviewed agent pushes
 - **Git flood protection** — Rate-limits network git calls (`push`/`pull`/`fetch`/`clone`/`ls-remote`) to catch runaway agents; default 4 per 60 s, separately toggleable via `SHELL_SECURE_GIT_FLOOD_PROTECT`
 - **HTTP/API protection** — Blocks authenticated destructive `curl` calls such as `DELETE` requests or delete/drop/purge API mutations; toggleable via `SHELL_SECURE_HTTP_API_PROTECT`
 - **PowerShell UTF-8 enforcement** — Blocks `Set-Content` / `Out-File` / `>` writes that would emit UTF-16 LE BOM or ANSI; covers `powershell`, `pwsh`, and case variants; toggleable via `SHELL_SECURE_PS_ENCODING_PROTECT`
 - **Logging** — Every blocked command is logged with a timestamp
 - **On/Off** — Disable protection at any time without uninstalling
 - **Non-interactive shells** — Also active in scripts and subshells via `BASH_ENV`
-- **Manual release** — Intentional local deletion/git mutation is possible with the usual shell bypass; destructive HTTP/API calls are deliberately routed through explicit user permission and the `SHELL_SECURE_HTTP_API_PROTECT` toggle instead of a one-line bypass hint
+- **Manual release** — Intentional local deletion/git mutation is possible with the usual shell bypass; reviewed leak pushes use the audited `SHELL_SECURE_GIT_LEAK_FORCE=1` path; destructive HTTP/API calls are routed through explicit user permission and the `SHELL_SECURE_HTTP_API_PROTECT` toggle instead of a one-line bypass hint
 
 ## Installation
 
@@ -283,6 +290,9 @@ SHELL_SECURE_GIT_PROTECT=true
 SHELL_SECURE_GIT_FLOOD_PROTECT=true
 SHELL_SECURE_GIT_FLOOD_THRESHOLD=4    # max calls
 SHELL_SECURE_GIT_FLOOD_WINDOW=60      # seconds
+# Git leak protection: warn before pushing likely secret or agent workspace files
+SHELL_SECURE_GIT_LEAK_PROTECT=true
+SHELL_SECURE_GIT_LEAK_TIMEOUT=60      # seconds to type "allow"
 # HTTP/API protection: authenticated destructive curl calls
 SHELL_SECURE_HTTP_API_PROTECT=true
 # PowerShell UTF-8 enforcement: block writes that would emit UTF-16 BOM / ANSI
@@ -367,6 +377,27 @@ $ git reset --hard HEAD
   ------------------------------------
   Better:  git add -A && git commit -m "WIP: <short description>"
            — Then run `git reset --hard <commit>` from a clean state.
+  ------------------------------------
+```
+
+```
+$ git push origin main
+
+  [Shell-Secure] BLOCKED
+  ------------------------------------
+  Layer:   Shell-Secure (Git Leak Protection)
+  Reason:  Push contains potential leak files.
+           The push was blocked because commits may publish
+           sensitive paths or agent workspace files.
+  ------------------------------------
+  Suspicious paths:
+    - .env (environment file)
+    - .claude/settings.local.json (agent workspace data)
+  ------------------------------------
+  Better:  git rm --cached <path>      # remove from Git, keep local file
+           Update .gitignore and rotate the secret if it was real.
+  ------------------------------------
+  Agent force: SHELL_SECURE_GIT_LEAK_FORCE=1 git push ...
   ------------------------------------
 ```
 
@@ -483,6 +514,13 @@ git log --oneline                        # OK (not counted)
 git diff                                 # OK (not counted)
 git branch -a                            # OK (not counted)
 
+# Git leak templates are allowed; real secret-like names prompt/block
+git add .env.example config.example.php  # OK
+git push --dry-run origin main           # OK (leak guard skips dry-runs)
+git push --repo origin main              # OK if outgoing commits are clean
+git push origin main --tags              # OK if branch and tags are clean
+SHELL_SECURE_GIT_LEAK_FORCE=1 git push   # OK after deliberate review, logged
+
 # PowerShell writes need explicit UTF-8 encoding
 powershell -c "Set-Content -Encoding utf8 file.txt 'content'"   # OK
 powershell -c "Get-Content file.txt"                            # OK (read-only)
@@ -518,6 +556,10 @@ shell-secure <command>
   flood enable | disable     Toggle git-flood protection
   flood threshold <n>        Set max network git calls per window
   flood window <s>           Set window length in seconds
+
+  git-leak show              Show git-leak status and allow timeout
+  git-leak enable | disable  Toggle git push leak protection
+  git-leak timeout <s>       Set allow prompt timeout in seconds
 
   ps-utf8 show               Show PS UTF-8 enforcement status
   ps-utf8 enable | disable   Toggle PS UTF-8 enforcement
@@ -560,7 +602,8 @@ Release ZIPs are generated into `dist/` and are meant for GitHub Releases, not f
 .\package-release.ps1
 ```
 
-The package contains the GUI executable, `VERSION`, `README.md`, `LICENSE`, `CONTRIBUTING.md`, release metadata, and SHA256 checksums.
+The package contains the GUI executable, `VERSION`, `README.md`, `LICENSE`, `CONTRIBUTING.md`, release metadata, release notes when present, and SHA256 checksums.
+Use `RELEASE_NOTES.md` as the GitHub release body, for example with `gh release create ... --notes-file .\RELEASE_NOTES.md`.
 
 ## License
 

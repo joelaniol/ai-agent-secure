@@ -1,5 +1,6 @@
 # Read this file first when changing Shell-Secure CLI layer toggles.
-# Purpose: manage per-protection-layer CLI subcommands such as flood, ps-utf8, and http-api.
+# Purpose: manage per-protection-layer CLI subcommands such as flood, git-leak,
+#          ps-utf8, and http-api.
 # Scope: protected path and whitelist mutations stay in cli-manage.sh.
 
 _cli_load_config_or_err() {
@@ -61,6 +62,44 @@ do_flood() {
         *)
             err "Unbekanntes Sub-Kommando: shell-secure flood $sub"
             echo "  Verwendung: shell-secure flood enable|disable|threshold <n>|window <s>|show"
+            return 1
+            ;;
+    esac
+}
+
+do_git_leak() {
+    local sub="${1:-show}"
+    local arg="${2:-}"
+    _cli_load_config_or_err || return 1
+    local config="$INSTALL_DIR/config.conf"
+
+    case "$sub" in
+        enable|on)
+            SHELL_SECURE_GIT_LEAK_PROTECT=true
+            cfg_write "$config"
+            ok "Git-Leak-Schutz aktiviert (Timeout ${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}s)."
+            ;;
+        disable|off)
+            SHELL_SECURE_GIT_LEAK_PROTECT=false
+            cfg_write "$config"
+            ok "Git-Leak-Schutz deaktiviert."
+            ;;
+        timeout)
+            if [[ ! "$arg" =~ ^[0-9]+$ ]] || [ "$arg" -lt 1 ]; then
+                err "Timeout muss eine positive Zahl in Sekunden sein: shell-secure git-leak timeout <s>"
+                return 1
+            fi
+            SHELL_SECURE_GIT_LEAK_TIMEOUT="$arg"
+            cfg_write "$config"
+            ok "Git-Leak-Timeout: ${arg}s."
+            ;;
+        show|"")
+            echo "  Git-Leak-Schutz: ${SHELL_SECURE_GIT_LEAK_PROTECT:-true}"
+            echo "  Allow-Timeout:   ${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}s"
+            ;;
+        *)
+            err "Unbekanntes Sub-Kommando: shell-secure git-leak $sub"
+            echo "  Verwendung: shell-secure git-leak enable|disable|timeout <s>|show"
             return 1
             ;;
     esac

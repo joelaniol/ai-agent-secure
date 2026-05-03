@@ -23,7 +23,7 @@ INSTALL_DIR="$HOME/.shell-secure"
 BASHRC="$HOME/.bashrc"
 MARKER_BEGIN="# >>> shell-secure >>>"
 MARKER_END="# <<< shell-secure <<<"
-VERSION="1.0.5"
+VERSION="1.1.0"
 
 # CLI colors
 RED='\033[0;31m'

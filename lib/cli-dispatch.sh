@@ -5,7 +5,7 @@
 do_help() {
     echo ""
     echo -e "  ${BOLD}AI Agent Secure v${VERSION}${NC}"
-    echo "  Shell- und Git-Schutz fuer AI Coding Agents"
+    echo "  Shell- und Git-Schutz für AI Coding Agents"
     echo ""
     echo -e "  ${BOLD}Verwendung:${NC} shell-secure <befehl> [argumente]"
     echo ""
@@ -14,19 +14,22 @@ do_help() {
     echo "    uninstall         Schutz komplett entfernen"
     echo "    update            Protection-Script aktualisieren"
     echo "    enable            Schutz aktivieren"
-    echo "    disable           Schutz temporaer deaktivieren"
+    echo "    disable           Schutz temporär deaktivieren"
     echo "    status            Aktuellen Status anzeigen"
     echo "    test              Schutz testen"
     echo ""
-    echo "    add <pfad>        Geschuetztes Verzeichnis hinzufuegen"
-    echo "    remove <pfad>     Geschuetztes Verzeichnis entfernen"
-    echo "    whitelist <name>  Verzeichnisname zur Whitelist hinzufuegen"
+    echo "    add <pfad>        Geschütztes Verzeichnis hinzufügen"
+    echo "    remove <pfad>     Geschütztes Verzeichnis entfernen"
+    echo "    whitelist <name>  Verzeichnisname zur Whitelist hinzufügen"
     echo "    log [n]           Letzte n blockierte Operationen (Standard: 20)"
     echo ""
     echo "    flood <sub>       Git-Flood-Schutz steuern:"
     echo "                        enable|disable|show"
     echo "                        threshold <n>   max Netzwerk-Calls"
     echo "                        window <s>      Zeitfenster in Sekunden"
+    echo "    git-leak <sub>    Git-Leak-Schutz für Pushes steuern:"
+    echo "                        enable|disable|show"
+    echo "                        timeout <s>     Allow-Fenster in Sekunden"
     echo "    ps-utf8 <sub>     PowerShell-UTF-8-Pflicht steuern:"
     echo "                        enable|disable|show"
     echo "    http-api <sub>    Curl HTTP/API-Schutz steuern:"
@@ -38,10 +41,11 @@ do_help() {
     echo "    shell-secure whitelist .mypy_cache"
     echo "    shell-secure disable"
     echo "    shell-secure flood threshold 8"
+    echo "    shell-secure git-leak timeout 30"
     echo "    shell-secure ps-utf8 disable"
     echo "    shell-secure http-api show"
     echo ""
-    echo -e "  ${BOLD}Umgehen (fuer manuelle Operationen):${NC}"
+    echo -e "  ${BOLD}Umgehen (für manuelle Operationen):${NC}"
     echo "    command rm -rf <pfad>       # Echten rm aufrufen"
     echo "    command cmd /c \"...\"        # Echtes cmd aufrufen"
     echo ""
@@ -63,6 +67,7 @@ main() {
         remove)     do_remove_dir "${1:-}" ;;
         whitelist)  do_whitelist "${1:-}" ;;
         flood)      do_flood "${1:-}" "${2:-}" ;;
+        git-leak)   do_git_leak "${1:-}" "${2:-}" ;;
         ps-utf8)    do_ps_utf8 "${1:-}" ;;
         http-api)   do_http_api "${1:-}" ;;
         log)        do_log "${1:-20}" ;;

@@ -39,6 +39,8 @@ cfg_load() {
     SHELL_SECURE_GIT_FLOOD_PROTECT=true
     SHELL_SECURE_GIT_FLOOD_THRESHOLD=4
     SHELL_SECURE_GIT_FLOOD_WINDOW=60
+    SHELL_SECURE_GIT_LEAK_PROTECT=true
+    SHELL_SECURE_GIT_LEAK_TIMEOUT=60
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
@@ -95,6 +97,14 @@ cfg_load() {
             SHELL_SECURE_GIT_FLOOD_WINDOW="${BASH_REMATCH[1]}"
             continue
         fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_GIT_LEAK_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_GIT_LEAK_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_GIT_LEAK_TIMEOUT[[:space:]]*=[[:space:]]*([0-9]+)$ ]]; then
+            SHELL_SECURE_GIT_LEAK_TIMEOUT="${BASH_REMATCH[1]}"
+            continue
+        fi
         if [[ "$trimmed" =~ ^SHELL_SECURE_HTTP_API_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
             SHELL_SECURE_HTTP_API_PROTECT="${BASH_REMATCH[1]}"
             continue
@@ -144,6 +154,10 @@ cfg_write() {
         echo "SHELL_SECURE_GIT_FLOOD_PROTECT=${SHELL_SECURE_GIT_FLOOD_PROTECT:-true}"
         echo "SHELL_SECURE_GIT_FLOOD_THRESHOLD=${SHELL_SECURE_GIT_FLOOD_THRESHOLD:-4}"
         echo "SHELL_SECURE_GIT_FLOOD_WINDOW=${SHELL_SECURE_GIT_FLOOD_WINDOW:-60}"
+        echo ""
+        echo "# Git leak protection: warn before pushing likely secret or agent workspace files"
+        echo "SHELL_SECURE_GIT_LEAK_PROTECT=${SHELL_SECURE_GIT_LEAK_PROTECT:-true}"
+        echo "SHELL_SECURE_GIT_LEAK_TIMEOUT=${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}"
         echo ""
         echo "# HTTP API protection: block authenticated destructive curl calls"
         echo "SHELL_SECURE_HTTP_API_PROTECT=${SHELL_SECURE_HTTP_API_PROTECT:-true}"

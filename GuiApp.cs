@@ -1,5 +1,5 @@
 // AI Agent Secure GUI - Portable WPF Application
-// Kompilieren: build-gui.ps1 -> dist/shell-secure-gui.exe
+// Build: build-gui.ps1 -> dist/shell-secure-gui.exe
 // Purpose: GUI entry point and MainPanel lifecycle/tray orchestration.
 // Scope: UI pages, dialogs, config parsing, and installer work live in the sibling *.cs files.
 // Read with: MainPanel.*.cs, ShellSecureConfig.cs, Installer.cs, ToastWindow.cs, Dialogs.cs.
@@ -21,8 +21,8 @@ using Drawing = System.Drawing;
 
 class GuiApp
 {
-    // Muss in Shortcut *und* Prozess identisch sein, damit Windows
-    // Toast/Balloon-Benachrichtigungen zuverlaessig anzeigt (Win10 1607+).
+    // Must match in the shortcut and process so Windows shows toast/balloon
+    // notifications reliably (Win10 1607+).
     public const string AppUserModelId = "AIAgentSecure.Gui";
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
@@ -132,6 +132,8 @@ partial class MainPanel : Window
     Border _languageEnBtn, _languageDeBtn;
     Border _deleteToggle, _deleteDot;
     Border _gitToggle, _gitDot;
+    Border _gitLeakToggle, _gitLeakDot;
+    System.Windows.Controls.TextBox _gitLeakTimeoutInput;
     Border _gitFloodToggle, _gitFloodDot;
     System.Windows.Controls.TextBox _gitFloodThresholdInput;
     System.Windows.Controls.TextBox _gitFloodWindowInput;
@@ -253,8 +255,8 @@ partial class MainPanel : Window
 
         TryStartFsWatcher();
 
-        // Fallback-Poll: faengt Faelle ab, in denen FSW nicht triggert
-        // (Log-Rotation, Verzeichnis erst nach Installation erstellt, etc.)
+        // Fallback poll catches cases where FSW does not fire
+        // (log rotation, directory created only after installation, etc.).
         _watcher = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _watcher.Tick += delegate { TryStartFsWatcher(); CheckLog(); };
         _watcher.Start();
@@ -324,26 +326,27 @@ partial class MainPanel : Window
             };
         }
 
-        // Neueste Eintraege klassifizieren, damit der Toast klar sagt,
-        // was fuer eine Aktion blockiert wurde. Fuenf Layer sind moeglich:
+        // Classify the newest entries so the toast says clearly which action
+        // was blocked. Six layers are possible:
         //   - Delete   (rm/cmd/powershell Remove-Item)
         //   - Git      (stash/reset/clean/checkout/switch/restore/branch -D)
-        //   - GitFlood (Rate-Limit auf Netzwerk-git-Calls)
-        //   - HttpApi  (curl mit authentifizierter destruktiver API-Semantik)
-        //   - PsUtf8   (PowerShell-Write ohne -Encoding utf8)
-        // Layer-Marker stehen im 2. Pipe-Feld bei Flood/HttpApi/PS-Utf8
-        // ("git-flood", "http-api", "ps-encoding"). Fuer die anderen reicht
-        // das cmd-Praefix.
+        //   - GitFlood (rate limit on network git calls)
+        //   - GitLeak  (git push with likely secret or agent workspace paths)
+        //   - HttpApi  (curl with authenticated destructive API semantics)
+        //   - PsUtf8   (PowerShell write without -Encoding utf8)
+        // Layer markers live in the second pipe field for Flood/GitLeak/
+        // HttpApi/PS-Utf8 ("git-flood", "git-leak", "http-api",
+        // "ps-encoding"). The cmd prefix is enough for the other layers.
         var recent = _cfg.GetLogLines(Math.Min(count, 5));
-        bool hasGit = false, hasDelete = false, hasGitFlood = false, hasHttpApi = false, hasPsUtf8 = false;
+        bool hasGit = false, hasDelete = false, hasGitFlood = false, hasGitLeak = false, hasHttpApi = false, hasPsUtf8 = false;
         string firstCmd = "", firstReason = "";
         foreach (var line in recent)
         {
             int bi = line.IndexOf("BLOCKED |");
             if (bi < 0) continue;
             string rest = line.Substring(bi + "BLOCKED |".Length).Trim();
-            // Split auf maximal 4 Felder (cmd | target | reason | ...). Pipes
-            // in den Werten selbst landen damit nicht im Reason-Feld.
+            // Split into at most 4 fields (cmd | target | reason | ...). Pipes
+            // inside values do not leak into the reason field.
             var parts = rest.Split(new[] { '|' }, 4);
             if (parts.Length == 0) continue;
             string cmd = parts[0].Trim();
@@ -354,6 +357,8 @@ partial class MainPanel : Window
 
             if (string.Equals(field2, "git-flood", StringComparison.OrdinalIgnoreCase))
                 hasGitFlood = true;
+            else if (string.Equals(field2, "git-leak", StringComparison.OrdinalIgnoreCase))
+                hasGitLeak = true;
             else if (string.Equals(field2, "http-api", StringComparison.OrdinalIgnoreCase))
                 hasHttpApi = true;
             else if (string.Equals(field2, "ps-encoding", StringComparison.OrdinalIgnoreCase))
@@ -373,10 +378,11 @@ partial class MainPanel : Window
         }
 
         int distinctLayers = (hasGit ? 1 : 0) + (hasDelete ? 1 : 0)
-            + (hasGitFlood ? 1 : 0) + (hasHttpApi ? 1 : 0) + (hasPsUtf8 ? 1 : 0);
+            + (hasGitFlood ? 1 : 0) + (hasGitLeak ? 1 : 0) + (hasHttpApi ? 1 : 0) + (hasPsUtf8 ? 1 : 0);
         string title;
         if (distinctLayers > 1) title = Loc.T("toast.multi");
         else if (hasGitFlood) title = Loc.T("toast.git_flood");
+        else if (hasGitLeak) title = Loc.T("toast.git_leak");
         else if (hasHttpApi) title = Loc.T("toast.http_api");
         else if (hasPsUtf8) title = Loc.T("toast.ps_utf8");
         else if (hasGit) title = Loc.T("toast.git");

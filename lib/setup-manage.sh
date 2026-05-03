@@ -13,12 +13,12 @@ do_manage_dirs() {
         show_header
         cfg_load "$INSTALL_DIR/config.conf"
 
-        echo -e "  ${B}Geschuetzte Verzeichnisse${NC}"
+        echo -e "  ${B}Geschützte Verzeichnisse${NC}"
         echo "  ────────────────────────────────────"
         echo ""
 
         if [ ${#SHELL_SECURE_PROTECTED_DIRS[@]} -eq 0 ]; then
-            echo -e "  ${D}Keine Verzeichnisse geschuetzt.${NC}"
+            echo -e "  ${D}Keine Verzeichnisse geschützt.${NC}"
         else
             local i=1
             for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
@@ -29,10 +29,10 @@ do_manage_dirs() {
 
         echo ""
         echo "  ────────────────────────────────────"
-        echo -e "  ${B}[a]${NC}  Verzeichnis hinzufuegen"
+        echo -e "  ${B}[a]${NC}  Verzeichnis hinzufügen"
         echo -e "  ${B}[d]${NC}  Verzeichnis entfernen"
         echo -e "  ${B}[w]${NC}  Whitelist verwalten"
-        echo -e "  ${B}[z]${NC}  Zurueck"
+        echo -e "  ${B}[z]${NC}  Zurück"
         echo ""
         echo -ne "  Auswahl: "
         read -r choice
@@ -67,19 +67,19 @@ do_add_dir_cli() {
     new_key=$(normalize_path_key "$new_path")
     for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
         if [ "$(normalize_path_key "$dir")" = "$new_key" ]; then
-            echo -e "  ${Y}Bereits geschuetzt:${NC} $new_path"
+            echo -e "  ${Y}Bereits geschützt:${NC} $new_path"
             return 0
         fi
     done
     SHELL_SECURE_PROTECTED_DIRS+=("$new_path")
     cfg_write "$INSTALL_DIR/config.conf"
-    echo -e "  ${G}+${NC} Hinzugefuegt: ${B}$new_path${NC}"
+    echo -e "  ${G}+${NC} Hinzugefügt: ${B}$new_path${NC}"
     echo -e "  ${Y}Hinweis:${NC} source ~/.bashrc"
 }
 
 do_add_dir() {
     echo ""
-    echo -e "  ${B}Verzeichnis hinzufuegen${NC}"
+    echo -e "  ${B}Verzeichnis hinzufügen${NC}"
     echo ""
     echo -e "  ${D}Beispiele:${NC}"
     echo -e "  ${D}  D:/Projekte/MeinCode${NC}"
@@ -105,7 +105,7 @@ do_add_dir() {
     new_key=$(normalize_path_key "$new_path")
     for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
         if [ "$(normalize_path_key "$dir")" = "$new_key" ]; then
-            echo -e "  ${Y}Bereits geschuetzt:${NC} $new_path"
+            echo -e "  ${Y}Bereits geschützt:${NC} $new_path"
             press_enter
             return
         fi
@@ -115,8 +115,8 @@ do_add_dir() {
     cfg_write "$INSTALL_DIR/config.conf"
 
     echo ""
-    echo -e "  ${G}+${NC} Hinzugefuegt: ${B}$new_path${NC}"
-    echo -e "  ${Y}Hinweis:${NC} Neue Shell oeffnen oder: ${C}source ~/.bashrc${NC}"
+    echo -e "  ${G}+${NC} Hinzugefügt: ${B}$new_path${NC}"
+    echo -e "  ${Y}Hinweis:${NC} Neue Shell öffnen oder: ${C}source ~/.bashrc${NC}"
     press_enter
 }
 
@@ -134,7 +134,7 @@ do_remove_dir() {
     read -r num
 
     if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -gt ${#SHELL_SECURE_PROTECTED_DIRS[@]} ]; then
-        echo -e "  ${R}Ungueltige Nummer.${NC}"
+        echo -e "  ${R}Ungültige Nummer.${NC}"
         press_enter
         return
     fi
@@ -145,7 +145,7 @@ do_remove_dir() {
     cfg_write "$INSTALL_DIR/config.conf"
 
     echo -e "  ${G}-${NC} Entfernt: ${B}$target${NC}"
-    echo -e "  ${Y}Hinweis:${NC} Neue Shell oeffnen oder: ${C}source ~/.bashrc${NC}"
+    echo -e "  ${Y}Hinweis:${NC} Neue Shell öffnen oder: ${C}source ~/.bashrc${NC}"
     press_enter
 }
 
@@ -154,7 +154,7 @@ do_manage_whitelist() {
         show_header
         cfg_load "$INSTALL_DIR/config.conf"
 
-        echo -e "  ${B}Whitelist (duerfen geloescht werden)${NC}"
+        echo -e "  ${B}Whitelist (dürfen gelöscht werden)${NC}"
         echo "  ────────────────────────────────────"
         echo ""
 
@@ -174,8 +174,8 @@ do_manage_whitelist() {
 
         echo ""
         echo "  ────────────────────────────────────"
-        echo -e "  ${B}[a]${NC}  Name hinzufuegen"
-        echo -e "  ${B}[z]${NC}  Zurueck"
+        echo -e "  ${B}[a]${NC}  Name hinzufügen"
+        echo -e "  ${B}[z]${NC}  Zurück"
         echo ""
         echo -ne "  Auswahl: "
         read -r choice

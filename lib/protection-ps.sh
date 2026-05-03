@@ -6,20 +6,20 @@
 #        protection-tokenize.sh (PS argument tokenizer + Remove-Item helpers).
 
 # ── PowerShell UTF-8 encoding guard ─────────────────────────
-# Hintergrund: Windows PowerShell 5.1 schreibt per Default UTF-16 LE BOM
-# (Out-File, > Redirection) bzw. ANSI/Codepage-1252 (Set-Content, Add-Content).
-# Agents, die "powershell -c \"echo 'foo' > file.txt\"" oder "Set-Content file"
-# ohne -Encoding utf8 absetzen, korrumpieren so Quellcode-Dateien (BOM-Bytes
-# am Anfang, jedes ASCII-Zeichen mit 0x00 vorgesetzt) - lesetools sehen
-# scheinbar Maschinencode statt Text.
+# Background: Windows PowerShell 5.1 writes UTF-16 LE BOM by default
+# (Out-File, > redirection) or ANSI/codepage-1252 (Set-Content, Add-Content).
+# Agents that run "powershell -c \"echo 'foo' > file.txt\"" or "Set-Content file"
+# without -Encoding utf8 corrupt source files this way (BOM bytes at the start,
+# every ASCII character preceded by 0x00); readers then see apparent machine
+# code instead of text.
 
 declare -ag _ss_ps_encoding_values=()
 
-# Sammelt alle "-Encoding <wert>"- und "-Encoding:<wert>"-Vorkommen aus den
-# tokenisierten PS-Args in _ss_ps_encoding_values. Werte werden lower-cased.
-# Wir matchen nur den vollen Flag-Namen "-Encoding" (case-insensitive); die
-# PS-Praefix-Verkuerzung "-Enc" wird bewusst NICHT erkannt, damit
-# Block-Hinweise klar lesbar bleiben - User soll den vollen Namen nutzen.
+# Collect all "-Encoding <value>" and "-Encoding:<value>" occurrences from
+# tokenized PS args in _ss_ps_encoding_values. Values are lower-cased. Match
+# only the full flag name "-Encoding" (case-insensitive); the PS prefix
+# abbreviation "-Enc" is intentionally NOT recognized so block hints stay clear
+# and users use the full name.
 _ss_ps_extract_encoding_values() {
     _ss_ps_encoding_values=()
     local i token next_tok n=${#_ss_ps_tokens[@]}
@@ -36,10 +36,10 @@ _ss_ps_extract_encoding_values() {
     done
 }
 
-# True wenn der Encoding-Wert sicher als UTF-8 lesbar ist. Akzeptiert wird
-# die UTF-8-Familie (mit/ohne BOM) und der numerische Codepage 65001 (= UTF-8).
-# Alles andere (ASCII, Unicode/UTF-16, Default, OEM, BigEndianUnicode, UTF7,
-# UTF32, byte) gilt als unsafe.
+# True when the encoding value is safely readable as UTF-8. Accept the UTF-8
+# family (with/without BOM) and numeric codepage 65001 (= UTF-8). Everything
+# else (ASCII, Unicode/UTF-16, Default, OEM, BigEndianUnicode, UTF7, UTF32,
+# byte) is considered unsafe.
 _ss_ps_encoding_value_is_utf8() {
     local v="${1,,}"
     v="${v//\"/}"
@@ -52,16 +52,15 @@ _ss_ps_encoding_value_is_utf8() {
     return 1
 }
 
-# Heuristik fuer .NET-Write-Methoden in PS-Inline-Skripten:
+# Heuristic for .NET write methods in PS inline scripts:
 # [System.IO.File]::WriteAllText / WriteAllLines / WriteAllBytes /
-# AppendAllText / AppendAllLines schreiben in .NET Framework per Default
-# UTF-8 MIT BOM. Das ist weniger katastrophal als UTF-16-BOM, aber noch
-# immer Quelltext-korrumpierend fuer BOM-empfindliche Tools. Wir blocken
-# deshalb nur, wenn explizit eine destruktive Encoding-Klasse mitgegeben
-# wurde (UnicodeEncoding, ASCIIEncoding, UTF7Encoding, UTF32Encoding,
-# BigEndianUnicode, Default). 2-Arg-Form (ohne Encoding) bleibt erlaubt,
-# weil der .NET-Default UTF-8 (mit BOM) ist - das deckt der Block-Hint
-# verbal mit ab.
+# AppendAllText / AppendAllLines write UTF-8 WITH BOM by default on .NET
+# Framework. This is less catastrophic than UTF-16 BOM, but still corrupts
+# source text for BOM-sensitive tools. Block only when a destructive encoding
+# class is passed explicitly (UnicodeEncoding, ASCIIEncoding, UTF7Encoding,
+# UTF32Encoding, BigEndianUnicode, Default). The 2-arg form (without Encoding)
+# remains allowed because the .NET default is UTF-8 (with BOM); the block hint
+# mentions that risk.
 _ss_ps_call_uses_destructive_dotnet_write() {
     local i token lower
     local n=${#_ss_ps_tokens[@]}
@@ -71,13 +70,13 @@ _ss_ps_call_uses_destructive_dotnet_write() {
         token="${_ss_ps_tokens[$i]}"
         lower="${token,,}"
         # .NET Method Detection: [System.IO.File]::WriteAllText etc.
-        # PS-Tokenizer behandelt das als ein Token. Substring-Match reicht.
+        # PS tokenizer treats this as one token. A substring match is enough.
         case "$lower" in
             *writealltext*|*writealllines*|*writeallbytes*|*appendalltext*|*appendalllines*)
                 has_dotnet_write=true
                 ;;
         esac
-        # Destruktive Encoding-Konstruktoren / Statics in .NET-Aufrufen.
+        # Destructive encoding constructors/statics in .NET calls.
         case "$lower" in
             *unicodeencoding*|*asciiencoding*|*utf7encoding*|*utf32encoding*|*bigendianunicode*)
                 has_destructive_encoding=true
@@ -92,11 +91,11 @@ _ss_ps_call_uses_destructive_dotnet_write() {
     return 1
 }
 
-# True wenn die tokenisierte PS-Befehlszeile eine schreibende Operation
-# enthaelt, die ohne UTF-8 ausgefuehrt wuerde. Zwei Klassen werden erkannt:
-#   1) Schreib-Cmdlets ohne ausreichend "-Encoding utf8"-Flags.
-#   2) ">"/">>"-Redirection - immer unsafe in PS 5.1, da > die Default-
-#      Encoding nutzt und kein -Encoding-Flag annimmt.
+# True when the tokenized PS command line contains a writing operation that
+# would run without UTF-8. Two classes are recognized:
+#   1) Write cmdlets without enough "-Encoding utf8" flags.
+#   2) ">"/">>" redirection: always unsafe in PS 5.1 because > uses the
+#      default encoding and accepts no -Encoding flag.
 _ss_ps_call_writes_unsafe_encoding() {
     local has_redirect=false
     local write_count=0
@@ -114,12 +113,12 @@ _ss_ps_call_writes_unsafe_encoding() {
         esac
     done
 
-    # Redirection nutzt immer Default-Encoding -> unsafe, egal welche Flags da sind.
+    # Redirection always uses default encoding: unsafe regardless of flags.
     $has_redirect && return 0
 
-    # .NET-Write mit explizit destruktiver Encoding-Klasse (UnicodeEncoding,
-    # ASCIIEncoding, etc.) -> blocken. Ohne explizite Encoding-Klasse laeuft
-    # die 2-Arg-Form weiter, weil der .NET-Default UTF-8 (mit BOM) ist.
+    # .NET write with an explicit destructive encoding class (UnicodeEncoding,
+    # ASCIIEncoding, etc.) -> block. Without an explicit encoding class the
+    # 2-arg form continues because the .NET default is UTF-8 (with BOM).
     if _ss_ps_call_uses_destructive_dotnet_write; then
         return 0
     fi
@@ -128,9 +127,9 @@ _ss_ps_call_writes_unsafe_encoding() {
 
     _ss_ps_extract_encoding_values
 
-    # Mindestens so viele -Encoding-Werte wie Schreib-Cmdlets noetig, damit
-    # jedes Cmdlet sein eigenes Flag haben koennte. Bei Mismatch konservativ
-    # blocken statt zu raten welches Cmdlet welches Flag bekommt.
+    # Need at least as many -Encoding values as write cmdlets so each cmdlet can
+    # have its own flag. On mismatch, block conservatively instead of guessing
+    # which cmdlet gets which flag.
     [ ${#_ss_ps_encoding_values[@]} -lt "$write_count" ] && return 0
 
     local v
@@ -157,7 +156,7 @@ _ss_block_ps_encoding() {
         echo "                 Windows PowerShell 5.1 defaultet auf UTF-16 LE BOM (Out-File, >)" >&2
         echo "                 bzw. ANSI/CP-1252 (Set-Content, Add-Content). Quellcode-Dateien" >&2
         echo "                 werden so mit BOM-Bytes verseucht und sehen wie Maschinencode aus," >&2
-        echo "                 sobald sie ein anderes Tool als UTF-8 oeffnet." >&2
+        echo "                 sobald sie ein anderes Tool als UTF-8 öffnet." >&2
     else
         echo "  $(_ss_t block.label.reason)PowerShell writes a file without -Encoding utf8." >&2
         echo "                 Windows PowerShell 5.1 defaults to UTF-16 LE BOM (Out-File, >)" >&2
@@ -199,10 +198,10 @@ powershell() {
     local full_args="$*"
     local cmd_name="${_ss_powershell_command_name:-powershell}"
 
-    # Zwei unabhaengige Layer mit eigenen Toggles:
-    #   1) Delete-Schutz   (Remove-Item -Recurse in geschuetztem Bereich)
-    #   2) UTF-8-Schutz    (Set-Content/Out-File/> ohne -Encoding utf8)
-    # Beide aus -> Parsing-Aufwand sparen und durchreichen.
+    # Two independent layers with separate toggles:
+    #   1) Delete protection (Remove-Item -Recurse inside protected areas)
+    #   2) UTF-8 protection (Set-Content/Out-File/> without -Encoding utf8)
+    # Both off -> skip parsing overhead and pass through.
     if ! _ss_delete_protect_enabled && ! _ss_ps_encoding_protect_enabled; then
         command "$cmd_name" "$@"
         return $?
@@ -210,9 +209,9 @@ powershell() {
 
     _ss_tokenize_powershell_args "$full_args"
 
-    # UTF-8-Check zuerst: greift global (nicht protected-dirs-gebunden), weil
-    # BOM-Korruption ueberall schmerzt. Bypass via "command powershell ..."
-    # bleibt erhalten, weil "command" diese Funktion gar nicht erst aufruft.
+    # UTF-8 check first: it applies globally (not bound to protected dirs)
+    # because BOM corruption hurts everywhere. The "command powershell ..."
+    # bypass remains because "command" never invokes this function.
     if _ss_ps_encoding_protect_enabled && _ss_ps_call_writes_unsafe_encoding; then
         _ss_block_ps_encoding "$cmd_name" "$@"
         return 1
@@ -232,8 +231,8 @@ powershell() {
                 if _ss_is_protected "$resolved" && ! _ss_is_safe_target "$resolved"; then
                     local reason safer
                     if [ "$(_ss_lang)" = "de" ]; then
-                        reason="Rekursives Loeschen (PowerShell) in geschuetztem Bereich"
-                        safer="Erst mit 'Remove-Item -WhatIf' trocken pruefen, oder einzelne Dateien ohne -Recurse loeschen; Ordner verschieben mit 'Rename-Item' statt loeschen."
+                        reason="Rekursives Löschen (PowerShell) in geschütztem Bereich"
+                        safer="Erst mit 'Remove-Item -WhatIf' trocken prüfen, oder einzelne Dateien ohne -Recurse löschen; Ordner verschieben mit 'Rename-Item' statt löschen."
                     else
                         reason="Recursive delete (PowerShell) in protected area"
                         safer="Dry-run with 'Remove-Item -WhatIf' first, or remove individual files without -Recurse; move folders with 'Rename-Item' instead of deleting."
@@ -244,8 +243,8 @@ powershell() {
             elif _ss_is_protected "$(pwd)"; then
                 local reason safer
                 if [ "$(_ss_lang)" = "de" ]; then
-                    reason="Rekursives Loeschen (PowerShell) - Ziel nicht erkannt"
-                    safer="LiteralPath explizit angeben statt CWD, oder ausserhalb des geschuetzten Bereichs ausfuehren."
+                    reason="Rekursives Löschen (PowerShell) - Ziel nicht erkannt"
+                    safer="LiteralPath explizit angeben statt CWD, oder außerhalb des geschützten Bereichs ausführen."
                 else
                     reason="Recursive delete (PowerShell) - target not detected"
                     safer="Pass -LiteralPath explicitly instead of relying on CWD, or run from outside the protected folder."
@@ -264,8 +263,8 @@ PowerShell() { local _ss_powershell_command_name="PowerShell"; powershell "$@"; 
 Powershell() { local _ss_powershell_command_name="Powershell"; powershell "$@"; }
 PowerShell.exe() { local _ss_powershell_command_name="PowerShell.exe"; powershell "$@"; }
 Powershell.exe() { local _ss_powershell_command_name="Powershell.exe"; powershell "$@"; }
-# PowerShell 7+ wird ueber denselben Wrapper geschickt, damit der UTF-8-Check
-# auch dort greift. PS7 defaultet zwar selbst auf UTF-8 (ohne BOM), aber
-# Agents, die "pwsh -c \"Out-File ... ASCII\"" absetzen, sollen weiter blocken.
+# PowerShell 7+ goes through the same wrapper so the UTF-8 check also applies
+# there. PS7 defaults to UTF-8 (without BOM), but agents that run
+# "pwsh -c \"Out-File ... ASCII\"" should still be blocked.
 pwsh() { local _ss_powershell_command_name="pwsh"; powershell "$@"; }
 pwsh.exe() { local _ss_powershell_command_name="pwsh.exe"; powershell "$@"; }

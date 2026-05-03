@@ -42,8 +42,8 @@ rm() {
                 if _ss_is_protected "$resolved" && ! _ss_is_safe_target "$resolved"; then
                     local reason safer
                     if [ "$(_ss_lang)" = "de" ]; then
-                        reason="Rekursives Loeschen in geschuetztem Bereich"
-                        safer="Gezielt einzelne Dateien ohne -rf loeschen, oder Ordner erst umbenennen: mv \"$resolved\" \"$resolved.old\" - dann spaeter manuell pruefen und entfernen."
+                        reason="Rekursives Löschen in geschütztem Bereich"
+                        safer="Gezielt einzelne Dateien ohne -rf löschen, oder Ordner erst umbenennen: mv \"$resolved\" \"$resolved.old\" - dann später manuell prüfen und entfernen."
                     else
                         reason="Recursive delete in protected area"
                         safer="Delete individual files without -rf, or rename the folder first: mv \"$resolved\" \"$resolved.old\" - then review and remove manually later."
@@ -83,7 +83,7 @@ cmd() {
             if _ss_is_protected "$resolved" && ! _ss_is_safe_target "$resolved"; then
                 local reason safer
                 if [ "$(_ss_lang)" = "de" ]; then
-                    reason="rmdir /s in geschuetztem Bereich"
+                    reason="rmdir /s in geschütztem Bereich"
                     safer="Aus Git Bash mit 'rm <datei>' gezielt entfernen (ohne -rf), oder den Ordner verschieben: mv \"$resolved\" \"$resolved.old\"."
                 else
                     reason="rmdir /s in protected area"
@@ -95,8 +95,8 @@ cmd() {
         elif _ss_is_protected "$(pwd)"; then
             local reason safer
             if [ "$(_ss_lang)" = "de" ]; then
-                reason="rmdir /s - Ziel nicht erkannt, CWD ist geschuetzt"
-                safer="Zielpfad explizit angeben (kein CWD-Loeschen), oder vorher in ein ungeschuetztes Verzeichnis wechseln."
+                reason="rmdir /s - Ziel nicht erkannt, CWD ist geschützt"
+                safer="Zielpfad explizit angeben (kein CWD-Löschen), oder vorher in ein ungeschütztes Verzeichnis wechseln."
             else
                 reason="rmdir /s - target not detected, CWD is protected"
                 safer="Pass the target path explicitly (do not delete CWD), or change to an unprotected area first."
