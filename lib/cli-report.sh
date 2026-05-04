@@ -166,7 +166,7 @@ do_test() {
     local safe_dir="$first_protected/__shell_secure_test_$$/node_modules"
     command mkdir -p "$safe_dir"
     echo "test" > "$safe_dir/package.json"
-    if rm -rf "$safe_dir" 2>&1 | grep -q "BLOCKIERT"; then
+    if rm -rf "$safe_dir" 2>&1 | grep -q "BLOCKED"; then
         err "FEHLGESCHLAGEN - Safe target wurde fälschlich blockiert!"
     else
         ok "Safe target (node_modules) wurde durchgelassen"

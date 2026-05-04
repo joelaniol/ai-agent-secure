@@ -34,8 +34,8 @@ class ShellSecureConfig
     // Guards against the common agent bug where "Set-Content" or ">" corrupts
     // source code with UTF-16 BOM when no explicit encoding is supplied.
     public bool PsEncodingProtect = true;
-    // Language for block messages and GUI text (en/de). Default = en; anything
-    // other than exact "de" falls back to "en".
+    // GUI language preference (en/de). Shell runtime block diagnostics stay
+    // English/ASCII so agent and terminal bridges cannot mojibake them.
     public string Language = "en";
     public List<string> ProtectedDirs = new List<string>();
     public List<string> SafeTargets = new List<string>();

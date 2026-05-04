@@ -1,10 +1,7 @@
 // Read this file first when adding/changing localizable GUI strings.
-// Purpose: key-based localization for the GUI surface. Mirrors the
-//          Bash _ss_t() helper architecture so EN/DE switching stays
-//          consistent across protection layer, TUI, CLI, and GUI.
-// Scope: covers GUI text only. Block-message bodies for the bash
-//        runtime live in lib/protection-i18n.sh and the per-renderer
-//        EN/DE pairs inside protection-{delete,ps,git}.sh.
+// Purpose: key-based localization for the GUI surface.
+// Scope: covers GUI text only. Bash runtime block diagnostics stay
+//        English/ASCII in lib/protection-i18n.sh for agent-safe output.
 
 using System;
 using System.Collections.Generic;
@@ -83,7 +80,7 @@ static class Loc
         { "settings.title", "Settings" },
         { "settings.subtitle", "Adjust protection and system options" },
         { "settings.language.title", "Language" },
-        { "settings.language.hint", "Switches block messages, GUI, and notifications between English and German." },
+        { "settings.language.hint", "Switches GUI text and notifications between English and German. Shell block diagnostics stay English/ASCII for agent-safe output." },
         { "settings.language.en", "English" },
         { "settings.language.de", "Deutsch" },
         { "action.change_language", "change language" },
@@ -300,7 +297,7 @@ static class Loc
         { "settings.title", "Einstellungen" },
         { "settings.subtitle", "Schutz und Systemoptionen anpassen" },
         { "settings.language.title", "Sprache" },
-        { "settings.language.hint", "Wechselt Block-Meldungen, GUI und Benachrichtigungen zwischen Englisch und Deutsch." },
+        { "settings.language.hint", "Wechselt GUI-Text und Benachrichtigungen zwischen Englisch und Deutsch. Shell-Blockmeldungen bleiben agentensicher Englisch/ASCII." },
         { "settings.language.en", "English" },
         { "settings.language.de", "Deutsch" },
         { "action.change_language", "Sprache umschalten" },

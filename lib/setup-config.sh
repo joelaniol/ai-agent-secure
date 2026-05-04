@@ -165,7 +165,7 @@ cfg_write() {
         echo "# PowerShell UTF-8 enforcement: block PS writes without -Encoding utf8"
         echo "SHELL_SECURE_PS_ENCODING_PROTECT=${SHELL_SECURE_PS_ENCODING_PROTECT:-true}"
         echo ""
-        echo "# Language for block messages and UI text (en/de)"
+        echo "# GUI language preference (en/de); shell block diagnostics stay English/ASCII"
         echo "SHELL_SECURE_LANGUAGE=${SHELL_SECURE_LANGUAGE:-en}"
         echo ""
         echo "# Log file for blocked operations"

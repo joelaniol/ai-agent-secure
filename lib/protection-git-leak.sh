@@ -386,9 +386,14 @@ _ss_git_leak_prompt_allow() {
     local timeout
     timeout=$(_ss_git_leak_timeout_seconds)
 
-    [ -r /dev/tty ] && [ -w /dev/tty ] || return 1
+    local lang answer tty_fd
+    # Git Bash may expose /dev/tty even when the current process has no
+    # controlling terminal. Open it once and reuse that fd so non-interactive
+    # agents fail closed without noisy redirection errors.
+    if ! { exec {tty_fd}<>/dev/tty; } 2>/dev/null; then
+        return 1
+    fi
 
-    local lang answer
     lang=$(_ss_lang)
     {
         echo ""
@@ -415,12 +420,14 @@ _ss_git_leak_prompt_allow() {
             echo "  'ignore', Enter, or timeout blocks the push."
             echo -n "  Decision [allow/ignore]: "
         fi
-    } > /dev/tty 2>&1
+    } >&"$tty_fd" 2>&1
 
-    if ! IFS= read -r -t "$timeout" answer < /dev/tty; then
-        echo "" > /dev/tty
+    if ! IFS= read -r -t "$timeout" answer <&"$tty_fd"; then
+        echo "" >&"$tty_fd"
+        exec {tty_fd}>&-
         return 1
     fi
+    exec {tty_fd}>&-
     case "${answer,,}" in
         allow|a|yes|y)
             return 0

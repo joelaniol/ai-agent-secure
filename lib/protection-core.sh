@@ -35,8 +35,9 @@ SHELL_SECURE_HTTP_API_PROTECT=true
 # Otherwise Windows PowerShell 5.1 writes UTF-16 LE BOM (Out-File, >) or ANSI
 # (Set-Content, Add-Content), damaging source files.
 SHELL_SECURE_PS_ENCODING_PROTECT=true
-# Language: "en" (default) or "de". Drives block-message text and GUI labels.
-# Validated leniently - any value other than "de" falls back to English.
+# Language preference persisted for GUI text. Shell block diagnostics stay
+# English/ASCII because agent and Windows terminal bridges may decode UTF-8
+# with legacy code pages.
 SHELL_SECURE_LANGUAGE=en
 declare -ag SHELL_SECURE_PROTECTED_DIRS=()
 declare -ag SHELL_SECURE_SAFE_TARGETS=()

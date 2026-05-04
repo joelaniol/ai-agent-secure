@@ -67,8 +67,8 @@ _ss_git_block_header() {
     _ss_block_rule
     echo "  $(_ss_t block.label.blocked_by)$layer" >&2
     echo "  $(_ss_t block.label.command)$full" >&2
-    [ -n "$repo_root" ] && echo "  $(_ss_t block.label.repo)$repo_root" >&2
-    [ -n "$branch" ] && echo "  $(_ss_t block.label.branch)$branch" >&2
+    [ -z "$repo_root" ] || echo "  $(_ss_t block.label.repo)$repo_root" >&2
+    [ -z "$branch" ] || echo "  $(_ss_t block.label.branch)$branch" >&2
 }
 
 _ss_git_manual_release() {
