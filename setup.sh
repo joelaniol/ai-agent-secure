@@ -23,7 +23,7 @@ INSTALL_DIR="$HOME/.shell-secure"
 BASHRC="$HOME/.bashrc"
 MARKER_BEGIN="# >>> shell-secure >>>"
 MARKER_END="# <<< shell-secure <<<"
-VERSION="1.1.1"
+VERSION="1.1.2"
 
 # Setup UI colors
 R='\033[0;31m'    # Red

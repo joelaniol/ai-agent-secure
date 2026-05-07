@@ -1,7 +1,7 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.1.1` | Build `20260503.235714` | Built `2026-05-03 23:57:14 UTC`
+**Current version:** `1.1.2` | Build `20260507.084449` | Built `2026-05-07 08:44:49 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->
@@ -20,7 +20,7 @@ Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — 
   <img src="screenshots/ai-agent-secure-about.png" alt="About page with version and build information" width="30%">
 </p>
 
-A `rm -rf` in the wrong directory wipes out years of work. A `git stash` on the wrong worktree silently buries uncommitted changes nobody pops back. A `git reset --hard` on dirty files leaves no Reflog trail. A `git push` can publish `.env`, `.claude`, private keys, or production config by accident. A `curl -X POST` with a bearer token can delete a hosted volume or database through an API. A `powershell Set-Content` without `-Encoding utf8` corrupts source files with UTF-16 BOM. A wedged agent fires `git fetch` four times a second and floods the credential prompt. AI Agent Secure intercepts all of these **before** they do damage.
+A `rm -rf` in the wrong directory wipes out years of work. A `git stash` on the wrong worktree silently buries uncommitted changes nobody pops back. A `git reset --hard` on dirty files leaves no Reflog trail. A `git push` can publish `.env`, `.claude`, private keys, or production config by accident. A `curl -X POST` with a bearer token can delete a hosted volume or database through an API. A `powershell Set-Content` without `-Encoding utf8` corrupts source files with UTF-16 BOM or CP1252/ANSI bytes. A wedged agent fires `git fetch` four times a second and floods the credential prompt. AI Agent Secure intercepts all of these **before** they do damage.
 
 ### Why this exists
 
@@ -111,7 +111,7 @@ The block message intentionally does **not** advertise a quick `command curl ...
 
 ### 4. PowerShell UTF-8 enforcement
 
-A separate layer (toggle `SHELL_SECURE_PS_ENCODING_PROTECT`, default **on**) catches a different agent failure mode: writing files via PowerShell without `-Encoding utf8`. Windows PowerShell 5.1 defaults to UTF-16 LE BOM (`Out-File`, `>`, `>>`) or ANSI/CP-1252 (`Set-Content`, `Add-Content`), so a careless `powershell -c "Set-Content config.json '{...}'"` corrupts source files with BOM bytes — and the file then looks like binary garbage to anything that expects UTF-8.
+A separate layer (toggle `SHELL_SECURE_PS_ENCODING_PROTECT`, default **on**) catches a different agent failure mode: writing files via PowerShell without `-Encoding utf8`. Windows PowerShell 5.1 defaults to UTF-16 LE BOM (`Out-File`, `>`, `>>`) or ANSI/CP-1252 (`Set-Content`, `Add-Content`), so a careless `powershell -c "Set-Content config.json '{...}'"` corrupts source files with BOM bytes or invalid single-byte umlauts — and the file then looks like binary garbage or mojibake to anything that expects UTF-8.
 
 Blocked forms:
 
@@ -127,6 +127,8 @@ Blocked forms:
 Coverage: `powershell`, `powershell.exe`, `PowerShell`, `Powershell`, `PowerShell.exe`, `Powershell.exe`, plus PowerShell 7's `pwsh` and `pwsh.exe`. Bypass via `command powershell ...` if you really need ANSI/UTF-16 output for a Windows-native consumer.
 
 Known gap: `[System.IO.File]::WriteAllText("...")` and other inline .NET method calls aren't reliably detectable from a string and are **not** intercepted. Use the cmdlet form (`Set-Content -Encoding utf8 ...`) for guaranteed coverage.
+
+Runtime protection catches PowerShell writes that pass through a loaded Shell-Secure session. Direct editor writes, standalone PowerShell sessions, or other tools can still bypass runtime wrappers, so release QA should also validate source text as UTF-8 without BOM before packaging.
 
 Pre-command options like `git -C /repo stash` and `git --git-dir=… reset --hard` are honoured — the dirty check runs against the targeted repo, not the current directory. Spellings `Git`, `git.exe`, `Git.exe`, and `env … git …` are also covered.
 
