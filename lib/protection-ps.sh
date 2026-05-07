@@ -155,14 +155,14 @@ _ss_block_ps_encoding() {
         echo "  $(_ss_t block.label.reason)PowerShell schreibt eine Datei ohne -Encoding utf8." >&2
         echo "                 Windows PowerShell 5.1 defaultet auf UTF-16 LE BOM (Out-File, >)" >&2
         echo "                 bzw. ANSI/CP-1252 (Set-Content, Add-Content). Quellcode-Dateien" >&2
-        echo "                 werden so mit BOM-Bytes verseucht und sehen wie Maschinencode aus," >&2
-        echo "                 sobald sie ein anderes Tool als UTF-8 öffnet." >&2
+        echo "                 landen so mit BOM- oder CP1252/ANSI-Bytes im Arbeitsbaum;" >&2
+        echo "                 UTF-8-Reader zeigen dann Mojibake oder Ersatzzeichen." >&2
     else
         echo "  $(_ss_t block.label.reason)PowerShell writes a file without -Encoding utf8." >&2
         echo "                 Windows PowerShell 5.1 defaults to UTF-16 LE BOM (Out-File, >)" >&2
         echo "                 or ANSI/CP-1252 (Set-Content, Add-Content). Source files end up" >&2
-        echo "                 polluted with BOM bytes and look like binary garbage to anything" >&2
-        echo "                 that opens them as UTF-8." >&2
+        echo "                 with BOM or CP1252/ANSI bytes in the worktree; UTF-8 readers" >&2
+        echo "                 then show mojibake or replacement characters." >&2
     fi
     _ss_block_rule
     echo "  $(_ss_t block.section.better_way)" >&2
