@@ -163,15 +163,30 @@ _ss_ps_call_uses_unsafe_dotnet_text_write() {
     return 1
 }
 
+# True when the next token after a ">" is a pure stream-handle target
+# (e.g. "&1", "&2") or the $null sink. PowerShell stream redirections like
+# "2>&1", "*>&1", "3>&2", "2>$null" merge or discard a stream handle; they
+# never write a file, so they must not trigger the UTF-8 encoding guard.
+# File redirects always name a non-stream target ("> out.txt", "1> log").
+_ss_ps_redirect_is_stream_handle() {
+    local next="$1"
+    [ "$next" = '$null' ] && return 0
+    [[ "$next" =~ ^\&[1-6]$ ]] && return 0
+    return 1
+}
+
 # True when the tokenized PS command line contains a writing operation that
 # would run without UTF-8. Two classes are recognized:
 #   1) Write cmdlets without enough "-Encoding utf8" flags.
-#   2) ">"/">>" redirection: always unsafe in PS 5.1 because > uses the
-#      default encoding and accepts no -Encoding flag.
+#   2) ">"/">>" file redirection: unsafe in PS 5.1 because > uses the
+#      default encoding and accepts no -Encoding flag. Stream-handle
+#      operators ("2>&1", "*>&1", "2>$null") are excluded - they touch no
+#      file. The tokenizer splits "2>&1" into "2","|>","&1", so detection
+#      runs by looking at the token after ">".
 #   3) Inline .NET text writes without a visible safe UTF-8 encoding.
 _ss_ps_call_writes_unsafe_encoding() {
     local has_redirect=false
-    local i token
+    local i token next_tok
     local n=${#_ss_ps_tokens[@]}
     for ((i = 0; i < n; i++)); do
         token="${_ss_ps_tokens[$i],,}"
@@ -179,7 +194,16 @@ _ss_ps_call_writes_unsafe_encoding() {
             set-content|add-content|out-file|tee-object|tee)
                 _ss_ps_write_cmdlet_has_safe_encoding "$i" || return 0
                 ;;
-            ">"|">>")
+            ">")
+                next_tok=""
+                [ $((i + 1)) -lt "$n" ] && next_tok="${_ss_ps_tokens[$((i + 1))],,}"
+                if ! _ss_ps_redirect_is_stream_handle "$next_tok"; then
+                    has_redirect=true
+                fi
+                ;;
+            ">>")
+                # ">>" is always file-append (PS has no ">>&" or ">>$null"
+                # idiom in real use), so treat unconditionally as unsafe.
                 has_redirect=true
                 ;;
         esac

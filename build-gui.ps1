@@ -83,6 +83,28 @@ function Assert-EmbeddedRoundTrip {
     [IO.File]::WriteAllText($tempProtection, $constants.ProtectionSh, $utf8NoBom)
     try {
         Assert-BashSyntax -BashPath $BashPath -FilePath $tempProtection
+
+        # Byte-level identity check between source slices on disk and the
+        # bytes the installer will write at runtime. Catches CP1252-vs-UTF-8
+        # mojibake where the string compare above can still pass (because
+        # both sides went through the same broken decoder), but the bytes
+        # on disk differ from the source. Concatenate source bytes the same
+        # way the build does, add the activation marker, then compare.
+        $expectedBytes = New-Object System.Collections.Generic.List[byte]
+        foreach ($slice in $script:ProtectionSliceList) {
+            $sliceFull = Join-Path $PSScriptRoot $slice
+            $expectedBytes.AddRange([byte[]][IO.File]::ReadAllBytes($sliceFull))
+        }
+        $expectedBytes.AddRange([byte[]]$utf8NoBom.GetBytes("`nexport SHELL_SECURE_ACTIVE=true`n"))
+        $actualBytes = [IO.File]::ReadAllBytes($tempProtection)
+        if ($actualBytes.Length -ne $expectedBytes.Count) {
+            throw ("Round-trip Byte-Laenge weicht ab: expected={0}, actual={1}." -f $expectedBytes.Count, $actualBytes.Length)
+        }
+        for ($i = 0; $i -lt $actualBytes.Length; $i++) {
+            if ($actualBytes[$i] -ne $expectedBytes[$i]) {
+                throw ("Round-trip Byte-Mismatch an Offset {0}: source=0x{1:X2}, embedded=0x{2:X2}. Encoding-Roundtrip ist kaputt (vermutlich CP1252-Read im Build)." -f $i, $expectedBytes[$i], $actualBytes[$i])
+            }
+        }
     }
     finally {
         Remove-Item $tempProtection -ErrorAction SilentlyContinue
@@ -302,16 +324,24 @@ $protectionSlices = @(
     "lib\protection-git.sh",
     "lib\protection-env.sh"
 )
+# Expose to Assert-EmbeddedRoundTrip for the byte-level identity check.
+$script:ProtectionSliceList = $protectionSlices
+# Critical: PowerShell 5.1 defaults Get-Content to CP1252 on Windows. Reading
+# our UTF-8 source files (German block banners with Umlaute, U+21B5 markers)
+# via the default codepage would silently mojibake every non-ASCII byte; the
+# install then ships double-encoded garbage and German UI text shows as
+# "Loeschen" -> "L?schen" etc. Force UTF-8 (without BOM) for every read.
+$utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false)
 $protectionSh = ""
 foreach ($slice in $protectionSlices) {
     $sliceFull = Join-Path $PSScriptRoot $slice
     Assert-BashSyntax -BashPath $bash -FilePath $sliceFull
-    $protectionSh += Get-Content -Raw $sliceFull
+    $protectionSh += [IO.File]::ReadAllText($sliceFull, $utf8NoBomEncoding)
 }
 # Activation marker at the end of the concatenated blob. The loader entry uses
 # the same export so source-level tests stay consistent.
 $protectionSh += "`nexport SHELL_SECURE_ACTIVE=true`n"
-$defaultConf  = Get-Content -Raw "config\default.conf"
+$defaultConf  = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "config\default.conf"), $utf8NoBomEncoding)
 $productName = Get-CSharpStringConstant -FilePath "AppInfo.cs" -Name "ProductName"
 $productVersion = Get-CSharpStringConstant -FilePath "AppInfo.cs" -Name "Version"
 $buildMetadata = New-VersionMetadata -ProductName $productName -Version $productVersion -UseExistingManifest:$NoVersionFileUpdate

@@ -201,10 +201,17 @@ _ss_load_config() {
 }
 
 _ss_log() {
-    local timestamp
+    local timestamp message
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    # One entry must be one physical line so the GUI log view, CLI report
+    # and tail-readers don't split a multi-line PowerShell command into
+    # many phantom entries. Replace CR/LF inside the logged command with a
+    # visible separator that survives copy/paste.
+    message="${1//$'\r\n'/ ↵ }"
+    message="${message//$'\n'/ ↵ }"
+    message="${message//$'\r'/ ↵ }"
     mkdir -p "$(dirname "$SHELL_SECURE_LOG")" 2>/dev/null || true
-    echo "[$timestamp] $1" >> "$SHELL_SECURE_LOG" 2>/dev/null
+    echo "[$timestamp] $message" >> "$SHELL_SECURE_LOG" 2>/dev/null
 }
 
 _ss_canonicalize() {

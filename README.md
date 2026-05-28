@@ -1,7 +1,7 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.1.4` | Build `20260518.205410` | Built `2026-05-18 20:54:10 UTC`
+**Current version:** `1.1.5` | Build `20260528.131633` | Built `2026-05-28 13:16:33 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->

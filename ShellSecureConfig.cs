@@ -229,16 +229,48 @@ class ShellSecureConfig
     }
 
     // Return the last `count` log lines, newest first.
+    // A "logical" log entry starts with "[YYYY-MM-DD HH:MM:SS] ". Older
+    // releases of _ss_log wrote multi-line PowerShell commands raw into the
+    // file, so a single conceptual block can span many physical lines. We
+    // fold continuation lines back into their owning entry so the GUI and
+    // CLI report show one item per blocked operation.
+    static readonly Regex LogEntryStart = new Regex(
+        @"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] ",
+        RegexOptions.Compiled);
+
+    static IEnumerable<string> ReadLogicalEntries(string path)
+    {
+        StringBuilder current = null;
+        foreach (var raw in File.ReadLines(path, Encoding.UTF8))
+        {
+            if (LogEntryStart.IsMatch(raw))
+            {
+                if (current != null) yield return current.ToString();
+                current = new StringBuilder(raw);
+            }
+            else if (current != null)
+            {
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    current.Append(" ↵ ");
+                    current.Append(raw);
+                }
+            }
+            // Lines before the first timestamp prefix are stray output;
+            // skip them so they don't masquerade as entries.
+        }
+        if (current != null) yield return current.ToString();
+    }
+
     public List<string> GetLogLines(int count)
     {
         if (!File.Exists(LogPath)) return new List<string>();
         try
         {
             var tail = new Queue<string>();
-            foreach (var line in File.ReadLines(LogPath, Encoding.UTF8))
+            foreach (var entry in ReadLogicalEntries(LogPath))
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                tail.Enqueue(line);
+                tail.Enqueue(entry);
                 if (tail.Count > count) tail.Dequeue();
             }
             var result = tail.ToList();
@@ -254,8 +286,7 @@ class ShellSecureConfig
         try
         {
             int count = 0;
-            foreach (var line in File.ReadLines(LogPath, Encoding.UTF8))
-                if (!string.IsNullOrWhiteSpace(line)) count++;
+            foreach (var _ in ReadLogicalEntries(LogPath)) count++;
             return count;
         }
         catch { return 0; }
@@ -283,8 +314,10 @@ class ShellSecureConfig
                 using (var reader = new StreamReader(stream, Encoding.UTF8, true))
                 {
                     string line;
+                    // Count only timestamp-prefixed lines so multi-line
+                    // commands in legacy entries don't inflate the count.
                     while ((line = reader.ReadLine()) != null)
-                        if (!string.IsNullOrWhiteSpace(line)) count++;
+                        if (LogEntryStart.IsMatch(line)) count++;
                 }
             }
             return count;
