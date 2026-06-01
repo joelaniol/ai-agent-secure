@@ -26,6 +26,12 @@ class ShellSecureConfig
     // secret files or agent workspace data. The timeout is fail-closed.
     public bool GitLeakProtect = true;
     public int GitLeakTimeout = 60;
+    // Git corruption protection: block CRCRLF line-ending damage before add or
+    // commit so huge whitespace-only diffs cannot enter history accidentally.
+    public bool CorruptionProtect = true;
+    // Local write audit buffers cat/tee redirections, so it is opt-in. The Git
+    // corruption guard remains the default fail-closed boundary.
+    public bool WriteAuditProtect = false;
     // HTTP/API protection: block authenticated curl calls with destructive API
     // semantics. The block text asks for explicit user permission instead of
     // advertising a quick command bypass.
@@ -79,6 +85,8 @@ class ShellSecureConfig
         GitFloodWindow = 60;
         GitLeakProtect = true;
         GitLeakTimeout = 60;
+        CorruptionProtect = true;
+        WriteAuditProtect = false;
         HttpApiProtect = true;
         PsEncodingProtect = true;
         Language = "en";
@@ -117,6 +125,10 @@ class ShellSecureConfig
                 int v;
                 if (int.TryParse(mgt.Groups[1].Value, out v) && v >= 1) GitLeakTimeout = v;
             }
+            var mcp = Regex.Match(text, @"SHELL_SECURE_CORRUPTION_PROTECT\s*=\s*(\w+)");
+            if (mcp.Success) CorruptionProtect = mcp.Groups[1].Value == "true";
+            var mwa = Regex.Match(text, @"SHELL_SECURE_WRITE_AUDIT_PROTECT\s*=\s*(\w+)");
+            if (mwa.Success) WriteAuditProtect = mwa.Groups[1].Value == "true";
             var mha = Regex.Match(text, @"SHELL_SECURE_HTTP_API_PROTECT\s*=\s*(\w+)");
             if (mha.Success) HttpApiProtect = mha.Groups[1].Value == "true";
             var mpe = Regex.Match(text, @"SHELL_SECURE_PS_ENCODING_PROTECT\s*=\s*(\w+)");
@@ -205,6 +217,8 @@ class ShellSecureConfig
             sb.AppendLine("SHELL_SECURE_GIT_FLOOD_WINDOW=" + GitFloodWindow);
             sb.AppendLine("SHELL_SECURE_GIT_LEAK_PROTECT=" + (GitLeakProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_GIT_LEAK_TIMEOUT=" + GitLeakTimeout);
+            sb.AppendLine("SHELL_SECURE_CORRUPTION_PROTECT=" + (CorruptionProtect ? "true" : "false"));
+            sb.AppendLine("SHELL_SECURE_WRITE_AUDIT_PROTECT=" + (WriteAuditProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_HTTP_API_PROTECT=" + (HttpApiProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_PS_ENCODING_PROTECT=" + (PsEncodingProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_LANGUAGE=" + (Language == "de" ? "de" : "en"));
@@ -238,10 +252,11 @@ class ShellSecureConfig
         @"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] ",
         RegexOptions.Compiled);
 
-    static IEnumerable<string> ReadLogicalEntries(string path)
+    static IEnumerable<string> ReadLogicalEntries(TextReader reader)
     {
         StringBuilder current = null;
-        foreach (var raw in File.ReadLines(path, Encoding.UTF8))
+        string raw;
+        while ((raw = reader.ReadLine()) != null)
         {
             if (LogEntryStart.IsMatch(raw))
             {
@@ -260,6 +275,15 @@ class ShellSecureConfig
             // skip them so they don't masquerade as entries.
         }
         if (current != null) yield return current.ToString();
+    }
+
+    static IEnumerable<string> ReadLogicalEntries(string path)
+    {
+        using (var reader = new StreamReader(path, Encoding.UTF8, true))
+        {
+            foreach (var entry in ReadLogicalEntries(reader))
+                yield return entry;
+        }
     }
 
     public List<string> GetLogLines(int count)
@@ -298,31 +322,34 @@ class ShellSecureConfig
         catch { return 0; }
     }
 
-    public int CountLogLinesAdded(long startOffset)
+    public List<string> GetLogEntriesAdded(long startOffset, out long newOffset)
     {
-        if (!File.Exists(LogPath)) return 0;
+        newOffset = startOffset < 0 ? 0 : startOffset;
+        if (!File.Exists(LogPath)) return new List<string>();
         try
         {
             var info = new FileInfo(LogPath);
-            if (startOffset < 0 || startOffset > info.Length) return GetLogCount();
-            if (startOffset == info.Length) return 0;
+            if (startOffset < 0 || startOffset > info.Length) startOffset = 0;
+            // Report the byte length this read used as its upper bound so the
+            // caller advances its cursor to exactly what was consumed. Using a
+            // size sampled before this call would re-emit entries appended in
+            // between as a duplicate toast on the next tick.
+            newOffset = info.Length;
+            if (startOffset == info.Length) return new List<string>();
 
-            int count = 0;
+            var entries = new List<string>();
             using (var stream = new FileStream(LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 stream.Seek(startOffset, SeekOrigin.Begin);
                 using (var reader = new StreamReader(stream, Encoding.UTF8, true))
                 {
-                    string line;
-                    // Count only timestamp-prefixed lines so multi-line
-                    // commands in legacy entries don't inflate the count.
-                    while ((line = reader.ReadLine()) != null)
-                        if (LogEntryStart.IsMatch(line)) count++;
+                    foreach (var entry in ReadLogicalEntries(reader))
+                        entries.Add(entry);
                 }
             }
-            return count;
+            return entries;
         }
-        catch { return 0; }
+        catch { return new List<string>(); }
     }
 
     public void ClearLog()

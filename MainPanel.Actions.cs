@@ -64,6 +64,14 @@ partial class MainPanel
         RefreshAll();
     }
 
+    void DoToggleCorruption()
+    {
+        if (!EnsureInstalledForEditing(Loc.T("action.toggle_corruption"))) return;
+        _cfg.CorruptionProtect = !_cfg.CorruptionProtect;
+        if (!SaveConfig()) return;
+        RefreshAll();
+    }
+
     void DoCommitGitFloodThreshold(int value)
     {
         if (!EnsureInstalledForEditing(Loc.T("action.change_flood_threshold"))) return;
@@ -163,7 +171,7 @@ partial class MainPanel
     {
         if (!EnsureInstalledForEditing(Loc.T("action.clear_log"))) return;
         if (MessageBox.Show(Loc.T("dialog.clear_log.message"), Loc.T("dialog.clear_log.title"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        _cfg.ClearLog(); _lastLog = 0; _lastLogSize = 0; RefreshLog(); RefreshStats();
+        _cfg.ClearLog(); _lastLog = 0; _lastLogSize = 0; _lastToastLogSize = 0; _lastToastLogPath = _cfg.LogPath ?? ""; RefreshLog(); RefreshStats();
     }
 
     void DoInstall()
@@ -227,6 +235,13 @@ partial class MainPanel
         Loc.Init(_cfg.Language);
         _lastLog = _cfg.GetLogCount();
         _lastLogSize = _cfg.GetLogSize();
+        string logPath = _cfg.LogPath ?? "";
+        if (string.IsNullOrEmpty(_lastToastLogPath)
+            || !string.Equals(_lastToastLogPath, logPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastToastLogPath = logPath;
+            _lastToastLogSize = _lastLogSize;
+        }
         if (!ok && showError && !string.IsNullOrWhiteSpace(_cfg.LastError))
             MessageBox.Show(_cfg.LastError, AppInfo.ProductName, MessageBoxButton.OK, MessageBoxImage.Warning);
         return ok;

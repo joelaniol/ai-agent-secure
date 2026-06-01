@@ -16,6 +16,9 @@ write_protection_bundle() {
         "protection-ps.sh"
         "protection-http.sh"
         "protection-git-leak.sh"
+        "protection-git-corruption.sh"
+        "protection-write-audit.sh"
+        "protection-git-flood.sh"
         "protection-git.sh"
         "protection-env.sh"
     )

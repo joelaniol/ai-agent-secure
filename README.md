@@ -1,12 +1,12 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.1.5` | Build `20260528.131633` | Built `2026-05-28 13:16:33 UTC`
+**Current version:** `1.1.6` | Build `20260601.062325` | Built `2026-06-01 06:23:25 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->
 
-Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — covers recursive directory deletion, dangerous git operations, risky `git push` leaks, runaway git rate-limiting, authenticated destructive `curl` API calls, and PowerShell UTF-8 enforcement.
+Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — covers recursive directory deletion, dangerous git operations, risky `git push` leaks, CRCRLF line-ending corruption, runaway git rate-limiting, authenticated destructive `curl` API calls, and PowerShell UTF-8 enforcement.
 
 ## Screenshots
 
@@ -20,17 +20,17 @@ Shell and Git protection for AI coding agents on Windows (Git Bash / MSYS2) — 
   <img src="screenshots/ai-agent-secure-about.png" alt="About page with version and build information" width="30%">
 </p>
 
-A `rm -rf` in the wrong directory wipes out years of work. A `git stash` on the wrong worktree silently buries uncommitted changes nobody pops back. A `git reset --hard` on dirty files leaves no Reflog trail. A `git push` can publish `.env`, `.claude`, private keys, or production config by accident. A `curl -X POST` with a bearer token can delete a hosted volume or database through an API. A `powershell Set-Content` without `-Encoding utf8` corrupts source files with UTF-16 BOM or CP1252/ANSI bytes. A wedged agent fires `git fetch` four times a second and floods the credential prompt. AI Agent Secure intercepts all of these **before** they do damage.
+A `rm -rf` in the wrong directory wipes out years of work. A `git stash` on the wrong worktree silently buries uncommitted changes nobody pops back. A `git reset --hard` on dirty files leaves no Reflog trail. A `git push` can publish `.env`, `.claude`, private keys, or production config by accident. A corrupted text file with doubled carriage returns (`CR CR LF`, bytes `0D 0D 0A`) can turn a small review into thousands of semantic-free line-ending changes. A `curl -X POST` with a bearer token can delete a hosted volume or database through an API. A `powershell Set-Content` without `-Encoding utf8` corrupts source files with UTF-16 BOM or CP1252/ANSI bytes. A wedged agent fires `git fetch` four times a second and floods the credential prompt. AI Agent Secure intercepts all of these **before** they do damage.
 
 ### Why this exists
 
-AI coding agents (Codex, Claude Code, etc.) routinely execute shell commands on your machine — including recursive deletes, stash/reset/clean operations, remote git calls, API calls, and PowerShell writes. A [documented incident on Windows](https://community.openai.com/t/potential-destructive-command-mis-parsing-on-windows-agent-cleanup-via-cmd-c-may-delete-workspace-content-instead-of-target-folder/1376026/2) showed how `cmd /c rmdir` mis-parsing caused an agent to wipe an entire workspace instead of a temporary folder. Other failure modes are subtler: agents stash changes and forget to pop, hard-reset dirty files, push local secret files, spin on remote git operations, call destructive provider APIs with broad tokens, or write files through PowerShell's legacy encodings. AI Agent Secure was built to put local guardrails in front of those asymmetric-risk commands.
+AI coding agents (Codex, Claude Code, etc.) routinely execute shell commands on your machine — including recursive deletes, stash/reset/clean operations, remote git calls, API calls, and PowerShell writes. A [documented incident on Windows](https://community.openai.com/t/potential-destructive-command-mis-parsing-on-windows-agent-cleanup-via-cmd-c-may-delete-workspace-content-instead-of-target-folder/1376026/2) showed how `cmd /c rmdir` mis-parsing caused an agent to wipe an entire workspace instead of a temporary folder. Other failure modes are subtler: agents stash changes and forget to pop, hard-reset dirty files, push local secret files, stage byte-level line-ending corruption, spin on remote git operations, call destructive provider APIs with broad tokens, or write files through PowerShell's legacy encodings. AI Agent Secure was built to put local guardrails in front of those asymmetric-risk commands.
 
 ---
 
 ## What gets intercepted?
 
-AI Agent Secure runs the **Shell-Secure protection core** with independent layers, each with its own toggle: `SHELL_SECURE_DELETE_PROTECT`, `SHELL_SECURE_GIT_PROTECT`, `SHELL_SECURE_GIT_LEAK_PROTECT`, `SHELL_SECURE_GIT_FLOOD_PROTECT`, `SHELL_SECURE_HTTP_API_PROTECT`, and `SHELL_SECURE_PS_ENCODING_PROTECT`.
+AI Agent Secure runs the **Shell-Secure protection core** with independent layers, each with its own toggle: `SHELL_SECURE_DELETE_PROTECT`, `SHELL_SECURE_GIT_PROTECT`, `SHELL_SECURE_GIT_LEAK_PROTECT`, `SHELL_SECURE_CORRUPTION_PROTECT`, `SHELL_SECURE_GIT_FLOOD_PROTECT`, `SHELL_SECURE_HTTP_API_PROTECT`, and `SHELL_SECURE_PS_ENCODING_PROTECT`.
 
 ### 1. Delete protection
 
@@ -83,6 +83,14 @@ If the layer finds a match, it shows a terminal prompt. Typing `allow` within th
 
 Push target detection follows the same repository and refspec shape Git sees: default `git push`, `git -C <repo> push`, `git push --repo origin main`, `git push --repo=origin HEAD:main`, explicit branch or tag refspecs, `--tags`, `--all`, and `--mirror` are checked before the network push runs. Delete pushes and `--dry-run` / `-n` pushes are skipped because they do not publish new file contents.
 
+**Git Corruption Protection** — separate add/commit layer that blocks doubled carriage returns before they enter Git. It detects the byte pattern `0D 0D 0A` (`CR CR LF`, often written as `\r\r\n`) in text files selected by `git add`, in staged text blobs before normal `git commit`, in tracked worktree text files that `git commit -a` would stage implicitly, and in pathspec commits such as `git commit --only file.txt`. Normal LF and CRLF files pass through. Known binary asset extensions such as fonts, images, archives, databases, GeoIP/MMDB, media, Office/PDF files, and streams containing NUL bytes are skipped so random binary payload does not become a false "line ending" finding. Historical repository debt is not blocked unless the current `add` or `commit` would write those bytes into the index or history.
+
+This layer is intentionally placed at the Git boundary instead of trying to ban a particular authoring command. A common failure mode is an agent creating new text files through shell heredocs or other terminal/PTY-driven writes, where the visible pasted text is normal but the bytes written to disk become `CRCRLF`. The guard treats those freshly written files as untrusted until the worktree/index byte scan passes.
+
+Shell-Secure also includes an opt-in local write audit for the most common risky forms (`cat <<EOF > file`, `cat ... > file`, and non-interactive `tee`). Enable it with `SHELL_SECURE_WRITE_AUDIT_PROTECT=true` when you want early feedback during agent file generation. It buffers the would-be output first and refuses to copy it onward when `CRCRLF` is already present for a text target. Binary/font/media/database targets are skipped for the same false-positive reason as the Git guard. This audit is best-effort and not enabled by default because buffering broad `cat`/`tee` usage can slow normal shell/build pipelines; `git add` / `git commit` remains the authoritative fail-closed boundary.
+
+The block message is intentionally written for repair agents: do **not** fix this with an editor, IDE, formatter, JSON/PHP parser, or generic UTF-8 read/write pass. Repair in a clean worktree/clone with a byte-only hygiene change that removes only the extra carriage return and preserves the file/repo line-ending policy: `0D 0D 0A -> 0A` for LF-policy files, or `0D 0D 0A -> 0D 0A` for CRLF-policy files. Leave every other byte unchanged. Then rerun the corruption guard, `git diff --check`, and format-specific smokes such as JSON parsing. For reviewed emergency cases, `SHELL_SECURE_CORRUPTION_FORCE=1 git ...` allows one Git command and logs it as `FORCED | ... | git-corruption | ...`; the same variable also forces the opt-in local write audit, with `SHELL_SECURE_WRITE_AUDIT_FORCE=1 <command>` available when only the write-audit layer should be bypassed.
+
 **Git Flood Protection** — separate layer that rate-limits *network* git calls (`push`, `pull`, `fetch`, `clone`, `ls-remote`) to catch agents that spin out and hammer the auth pipeline or push/pull loop. Lives behind its own toggle `SHELL_SECURE_GIT_FLOOD_PROTECT` and stays active even when `SHELL_SECURE_GIT_PROTECT=false` (so you can keep flood protection while opting out of the destructive guards). Defaults: max **4 calls per 60 seconds**, configurable via `SHELL_SECURE_GIT_FLOOD_THRESHOLD` and `SHELL_SECURE_GIT_FLOOD_WINDOW`. Non-network subcommands (`status`, `log`, `diff`, `branch -a`, …) are never counted. State lives in `~/.shell-secure/git-rate.log` and entries older than the window are pruned automatically; blocked calls do **not** count toward the bucket so the limiter recovers cleanly.
 
 ### 3. HTTP/API protection
@@ -134,7 +142,7 @@ Runtime protection catches PowerShell writes that pass through a loaded Shell-Se
 
 Pre-command options like `git -C /repo stash` and `git --git-dir=… reset --hard` are honoured — the dirty check runs against the targeted repo, not the current directory. Spellings `Git`, `git.exe`, `Git.exe`, and `env … git …` are also covered.
 
-Other git operations (`commit`, `rebase`, …) are **not** intercepted today. The git layer focuses on the asymmetric-risk subcommands where uncommitted work disappears without a Reflog entry to recover from.
+Generic git operations such as `rebase` are **not** intercepted today. `git commit` is intercepted only by Git Corruption Protection when staged, implicitly staged (`-a`), included (`--include`), or pathspec/`--only` content contains CRCRLF bytes; normal commits pass through. The destructive-work-loss git layer focuses on asymmetric-risk subcommands where uncommitted work disappears without a Reflog entry to recover from.
 
 ## How does it work?
 
@@ -229,20 +237,21 @@ Paths are normalized before comparison:
 
 - **Protected areas** — Configure folders, projects, or whole drives
 - **Whitelist** — Build artifacts like `node_modules`, `dist`, `.cache` etc. can still be deleted
-- **Per-category toggles** — Delete, Git, Git Leak, Git Flood, HTTP/API, and PowerShell UTF-8 layers can be flipped independently of the master switch
+- **Per-category toggles** — Delete, Git, Git Leak, Git Corruption, Git Flood, HTTP/API, and PowerShell UTF-8 layers can be flipped independently of the master switch
 - **Git stash guard** — Blocks captures on dirty worktrees and any mutation on existing stash entries; honours `git -C /path` and `--git-dir`
 - **Git reset --hard guard** — Blocks `git reset --hard` only when uncommitted tracked changes would be lost; clean trees and `--soft` / `--mixed` resets pass through
 - **Git clean guard** — Blocks `git clean -f` only when something would actually be removed; dry-runs (`-nfd`), interactive (`-i`), and no-op runs pass through
 - **Git checkout / switch / restore guard** — Blocks the worktree-overwriting forms (`-f`, `--`, `.`, `--discard-changes`, `restore` default mode) only when tracked changes would be lost; pure branch switches and `restore --staged` always pass through
 - **Git branch -D guard** — Blocks `git branch -D <name>` only when the branch is unmerged into HEAD; force-delete on a merged branch passes through, lowercase `-d` is left to git's own safety check
 - **Git leak protection** — Warns before `git push` publishes likely secret files or agent workspace data; handles default pushes, explicit refspecs, `--repo`, `--tags`, `--all`, and `--mirror`; blocks automatically after the allow timeout and supports audited `SHELL_SECURE_GIT_LEAK_FORCE=1` for reviewed agent pushes
+- **Git corruption protection** — Blocks CRCRLF (`0D 0D 0A`) line-ending corruption in text files before `git add` / `git commit`; skips known binary/font/media/database assets to avoid false positives; repair guidance requires a byte-only hygiene commit, not formatter/editor/encoding rewrites; toggleable via `SHELL_SECURE_CORRUPTION_PROTECT`; optional early `cat`/`tee` write audit via `SHELL_SECURE_WRITE_AUDIT_PROTECT`
 - **Git flood protection** — Rate-limits network git calls (`push`/`pull`/`fetch`/`clone`/`ls-remote`) to catch runaway agents; default 4 per 60 s, separately toggleable via `SHELL_SECURE_GIT_FLOOD_PROTECT`
 - **HTTP/API protection** — Blocks authenticated destructive `curl` calls such as `DELETE` requests or delete/drop/purge API mutations; toggleable via `SHELL_SECURE_HTTP_API_PROTECT`
 - **PowerShell UTF-8 enforcement** — Blocks `Set-Content` / `Out-File` / `>` and inline `.NET` text writes that do not visibly use UTF-8; covers `powershell`, `pwsh`, and case variants; toggleable via `SHELL_SECURE_PS_ENCODING_PROTECT`
 - **Logging** — Every blocked command is logged with a timestamp
 - **On/Off** — Disable protection at any time without uninstalling
 - **Non-interactive shells** — Also active in scripts and subshells via `BASH_ENV`
-- **Manual release** — Intentional local deletion/git mutation is possible with the usual shell bypass; reviewed leak pushes use the audited `SHELL_SECURE_GIT_LEAK_FORCE=1` path; destructive HTTP/API calls are routed through explicit user permission and the `SHELL_SECURE_HTTP_API_PROTECT` toggle instead of a one-line bypass hint
+- **Manual release** — Intentional local deletion/git mutation is possible with the usual shell bypass; reviewed leak pushes use `SHELL_SECURE_GIT_LEAK_FORCE=1`; reviewed CRCRLF exceptions use `SHELL_SECURE_CORRUPTION_FORCE=1` for Git/write-audit or `SHELL_SECURE_WRITE_AUDIT_FORCE=1` for write-audit only; destructive HTTP/API calls are routed through explicit user permission and the `SHELL_SECURE_HTTP_API_PROTECT` toggle instead of a one-line bypass hint
 
 ## Installation
 
@@ -297,6 +306,10 @@ SHELL_SECURE_GIT_FLOOD_WINDOW=60      # seconds
 # Git leak protection: warn before pushing likely secret or agent workspace files
 SHELL_SECURE_GIT_LEAK_PROTECT=true
 SHELL_SECURE_GIT_LEAK_TIMEOUT=60      # seconds to type "allow"
+# Git corruption protection: block CRCRLF before add/commit
+SHELL_SECURE_CORRUPTION_PROTECT=true
+# Optional early audit for cat/tee redirections; default off to avoid buffering broad shell pipelines
+SHELL_SECURE_WRITE_AUDIT_PROTECT=false
 # HTTP/API protection: authenticated destructive curl calls
 SHELL_SECURE_HTTP_API_PROTECT=true
 # PowerShell UTF-8 enforcement: block writes without explicit UTF-8
@@ -402,6 +415,36 @@ $ git push origin main
            Update .gitignore and rotate the secret if it was real.
   ------------------------------------
   Agent force: SHELL_SECURE_GIT_LEAK_FORCE=1 git push ...
+  ------------------------------------
+```
+
+```
+$ git add assets/geolib/en/states/MX-CHP.json
+
+  [Shell-Secure] BLOCKED
+  ------------------------------------
+  Blocked by:     Shell-Secure (Git Corruption Protection)
+  Command:        git add assets/geolib/en/states/MX-CHP.json
+  Reason:         Korruption entdeckt / Corruption detected: CRCRLF line endings.
+                  A doubled carriage return before LF would enter Git and
+                  later create huge semantic-free whitespace diffs.
+  ------------------------------------
+  Affected paths:
+    - assets/geolib/en/states/MX-CHP.json
+  ------------------------------------
+  Better way:
+    Do not repair this via editor, formatter, JSON/PHP rewrite, or UTF-8 parse/write.
+    Use a clean worktree/clone and a byte-only hygiene commit.
+    Remove only the extra CR and keep the file/repo line-ending policy:
+      LF policy:   0D 0D 0A  ->  0A
+      CRLF policy: 0D 0D 0A  ->  0D 0A
+    Leave every other byte unchanged; do not re-encode file contents.
+    Then rerun the corruption guard.
+    Also run git diff --check and format-specific smokes (for example JSON parse).
+  ------------------------------------
+  Manual release:
+    SHELL_SECURE_CORRUPTION_FORCE=1 git ...
+    Only after verifying the byte-level line endings intentionally.
   ------------------------------------
 ```
 
@@ -525,6 +568,11 @@ git push --repo origin main              # OK if outgoing commits are clean
 git push origin main --tags              # OK if branch and tags are clean
 SHELL_SECURE_GIT_LEAK_FORCE=1 git push   # OK after deliberate review, logged
 
+# CRCRLF corruption is blocked before it enters the index/history
+printf 'bad\r\r\n' > broken.txt
+git add broken.txt                       # BLOCKED
+SHELL_SECURE_CORRUPTION_FORCE=1 git add broken.txt  # OK after byte-level review, logged
+
 # PowerShell writes need explicit UTF-8 encoding
 powershell -c "Set-Content -Encoding utf8 file.txt 'content'"   # OK
 powershell -c "Get-Content file.txt"                            # OK (read-only)
@@ -564,6 +612,10 @@ shell-secure <command>
   git-leak show              Show git-leak status and allow timeout
   git-leak enable | disable  Toggle git push leak protection
   git-leak timeout <s>       Set allow prompt timeout in seconds
+
+  corruption show            Show CRCRLF corruption detector status
+  corruption enable | disable
+                              Toggle git add/commit corruption protection
 
   ps-utf8 show               Show PS UTF-8 enforcement status
   ps-utf8 enable | disable   Toggle PS UTF-8 enforcement

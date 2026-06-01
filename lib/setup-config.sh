@@ -41,6 +41,8 @@ cfg_load() {
     SHELL_SECURE_GIT_FLOOD_WINDOW=60
     SHELL_SECURE_GIT_LEAK_PROTECT=true
     SHELL_SECURE_GIT_LEAK_TIMEOUT=60
+    SHELL_SECURE_CORRUPTION_PROTECT=true
+    SHELL_SECURE_WRITE_AUDIT_PROTECT=false
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
@@ -105,6 +107,14 @@ cfg_load() {
             SHELL_SECURE_GIT_LEAK_TIMEOUT="${BASH_REMATCH[1]}"
             continue
         fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_CORRUPTION_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_CORRUPTION_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_WRITE_AUDIT_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_WRITE_AUDIT_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
         if [[ "$trimmed" =~ ^SHELL_SECURE_HTTP_API_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
             SHELL_SECURE_HTTP_API_PROTECT="${BASH_REMATCH[1]}"
             continue
@@ -158,6 +168,12 @@ cfg_write() {
         echo "# Git leak protection: warn before pushing likely secret or agent workspace files"
         echo "SHELL_SECURE_GIT_LEAK_PROTECT=${SHELL_SECURE_GIT_LEAK_PROTECT:-true}"
         echo "SHELL_SECURE_GIT_LEAK_TIMEOUT=${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}"
+        echo ""
+        echo "# Git corruption protection: block CRCRLF line-ending damage before add/commit"
+        echo "SHELL_SECURE_CORRUPTION_PROTECT=${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
+        echo ""
+        echo "# Local write audit for cat/tee redirections: opt-in, buffers audited streams"
+        echo "SHELL_SECURE_WRITE_AUDIT_PROTECT=${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false}"
         echo ""
         echo "# HTTP API protection: block authenticated destructive curl calls"
         echo "SHELL_SECURE_HTTP_API_PROTECT=${SHELL_SECURE_HTTP_API_PROTECT:-true}"

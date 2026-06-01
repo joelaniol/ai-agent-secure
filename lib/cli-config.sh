@@ -41,6 +41,8 @@ cfg_load() {
     SHELL_SECURE_GIT_FLOOD_WINDOW=60
     SHELL_SECURE_GIT_LEAK_PROTECT=true
     SHELL_SECURE_GIT_LEAK_TIMEOUT=60
+    SHELL_SECURE_CORRUPTION_PROTECT=true
+    SHELL_SECURE_WRITE_AUDIT_PROTECT=false
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
@@ -105,6 +107,14 @@ cfg_load() {
             SHELL_SECURE_GIT_LEAK_TIMEOUT="${BASH_REMATCH[1]}"
             continue
         fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_CORRUPTION_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_CORRUPTION_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_WRITE_AUDIT_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_WRITE_AUDIT_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
         if [[ "$trimmed" =~ ^SHELL_SECURE_HTTP_API_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
             SHELL_SECURE_HTTP_API_PROTECT="${BASH_REMATCH[1]}"
             continue
@@ -141,13 +151,10 @@ cfg_write() {
         echo "# AI Agent Secure Configuration (Shell-Secure core)"
         echo "# ==========================="
         echo ""
-        echo "# Protection enabled (true/false)"
         echo "SHELL_SECURE_ENABLED=$SHELL_SECURE_ENABLED"
         echo ""
-        echo "# Delete command protection enabled (true/false)"
         echo "SHELL_SECURE_DELETE_PROTECT=${SHELL_SECURE_DELETE_PROTECT:-true}"
         echo ""
-        echo "# Git destructive command protection enabled (true/false)"
         echo "SHELL_SECURE_GIT_PROTECT=${SHELL_SECURE_GIT_PROTECT:-true}"
         echo ""
         echo "# Git flood protection: rate-limit network git calls (push/pull/fetch/clone/ls-remote)"
@@ -159,6 +166,12 @@ cfg_write() {
         echo "SHELL_SECURE_GIT_LEAK_PROTECT=${SHELL_SECURE_GIT_LEAK_PROTECT:-true}"
         echo "SHELL_SECURE_GIT_LEAK_TIMEOUT=${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}"
         echo ""
+        echo "# Git corruption protection: block CRCRLF line-ending damage before add/commit"
+        echo "SHELL_SECURE_CORRUPTION_PROTECT=${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
+        echo ""
+        echo "# Local write audit for cat/tee redirections: opt-in, buffers audited streams"
+        echo "SHELL_SECURE_WRITE_AUDIT_PROTECT=${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false}"
+        echo ""
         echo "# HTTP API protection: block authenticated destructive curl calls"
         echo "SHELL_SECURE_HTTP_API_PROTECT=${SHELL_SECURE_HTTP_API_PROTECT:-true}"
         echo ""
@@ -168,11 +181,8 @@ cfg_write() {
         echo "# GUI language preference (en/de); shell block diagnostics stay English/ASCII"
         echo "SHELL_SECURE_LANGUAGE=${SHELL_SECURE_LANGUAGE:-en}"
         echo ""
-        echo "# Log file for blocked operations"
         printf 'SHELL_SECURE_LOG="%s"\n' "$(cfg_escape "$SHELL_SECURE_LOG")"
         echo ""
-        echo "# Protected areas - recursive deletes in these trees will be blocked"
-        echo "# Use forward slashes, one entry per array element"
         echo "# Fresh Windows installs add C:/ automatically when the drive exists."
         echo "SHELL_SECURE_PROTECTED_DIRS=("
         for dir in "${SHELL_SECURE_PROTECTED_DIRS[@]}"; do
@@ -180,8 +190,6 @@ cfg_write() {
         done
         echo ")"
         echo ""
-        echo "# Safe directory names that CAN be recursively deleted (build artifacts etc.)"
-        echo "# Only the basename is checked, not the full path"
         echo "SHELL_SECURE_SAFE_TARGETS=("
         for safe in "${SHELL_SECURE_SAFE_TARGETS[@]}"; do
             printf '    "%s"\n' "$(cfg_escape "$safe")"

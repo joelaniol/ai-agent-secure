@@ -90,6 +90,9 @@ partial class MainPanel : Window
     FileSystemWatcher _fsWatcher;
     int _lastLog = 0;
     long _lastLogSize = 0;
+    long _lastToastLogSize = 0;
+    string _lastToastLogPath = "";
+    string _watchedLogPath = "";
     bool _allowClose = false;
 
     // ── Design Tokens ──
@@ -134,6 +137,7 @@ partial class MainPanel : Window
     Border _gitToggle, _gitDot;
     Border _gitLeakToggle, _gitLeakDot;
     System.Windows.Controls.TextBox _gitLeakTimeoutInput;
+    Border _corruptionToggle, _corruptionDot;
     Border _gitFloodToggle, _gitFloodDot;
     System.Windows.Controls.TextBox _gitFloodThresholdInput;
     System.Windows.Controls.TextBox _gitFloodWindowInput;
@@ -248,164 +252,6 @@ partial class MainPanel : Window
         if (oldMenu != null) oldMenu.Dispose();
     }
 
-    void SetupWatcher()
-    {
-        _lastLogSize = _cfg.GetLogSize();
-        _lastLog = _cfg.GetLogCount();
-
-        TryStartFsWatcher();
-
-        // Fallback poll catches cases where FSW does not fire
-        // (log rotation, directory created only after installation, etc.).
-        _watcher = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _watcher.Tick += delegate { TryStartFsWatcher(); CheckLog(); };
-        _watcher.Start();
-    }
-
-    void TryStartFsWatcher()
-    {
-        if (_fsWatcher != null) return;
-        try
-        {
-            string logDir = Path.GetDirectoryName(_cfg.LogPath);
-            string logFile = Path.GetFileName(_cfg.LogPath);
-            if (string.IsNullOrWhiteSpace(logDir) || string.IsNullOrWhiteSpace(logFile)) return;
-            if (!Directory.Exists(logDir)) return;
-            _fsWatcher = new FileSystemWatcher(logDir, logFile);
-            _fsWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size
-                                      | NotifyFilters.CreationTime | NotifyFilters.FileName;
-            FileSystemEventHandler onChange = delegate { Dispatcher.BeginInvoke((Action)CheckLog); };
-            _fsWatcher.Changed += onChange;
-            _fsWatcher.Created += onChange;
-            _fsWatcher.Renamed += delegate { Dispatcher.BeginInvoke((Action)CheckLog); };
-            _fsWatcher.EnableRaisingEvents = true;
-        }
-        catch
-        {
-            if (_fsWatcher != null) { try { _fsWatcher.Dispose(); } catch { } _fsWatcher = null; }
-        }
-    }
-
-    void CheckLog()
-    {
-        long size;
-        try { size = _cfg.GetLogSize(); } catch { return; }
-        if (size == _lastLogSize) return;
-
-        if (size < _lastLogSize)
-        {
-            _lastLogSize = size;
-            _lastLog = _cfg.GetLogCount();
-            RefreshLog();
-            RefreshStats();
-            return;
-        }
-
-        int d = _cfg.CountLogLinesAdded(_lastLogSize);
-        _lastLogSize = size;
-        if (d > 0)
-        {
-            _lastLog += d;
-            ShowBlockedToast(d);
-            RefreshLog();
-            RefreshStats();
-        }
-    }
-
-    void ShowBlockedToast(int count)
-    {
-        if (_toast == null)
-        {
-            _toast = new ToastWindow();
-            _toast.Clicked += delegate
-            {
-                Show();
-                if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-                Activate();
-                ShowPage(3);
-            };
-        }
-
-        // Classify the newest entries so the toast says clearly which action
-        // was blocked. Six layers are possible:
-        //   - Delete   (rm/cmd/powershell Remove-Item)
-        //   - Git      (stash/reset/clean/checkout/switch/restore/branch -D)
-        //   - GitFlood (rate limit on network git calls)
-        //   - GitLeak  (git push with likely secret or agent workspace paths)
-        //   - HttpApi  (curl with authenticated destructive API semantics)
-        //   - PsUtf8   (PowerShell write without -Encoding utf8)
-        // Layer markers live in the second pipe field for Flood/GitLeak/
-        // HttpApi/PS-Utf8 ("git-flood", "git-leak", "http-api",
-        // "ps-encoding"). The cmd prefix is enough for the other layers.
-        var recent = _cfg.GetLogLines(Math.Min(count, 5));
-        bool hasGit = false, hasDelete = false, hasGitFlood = false, hasGitLeak = false, hasHttpApi = false, hasPsUtf8 = false;
-        string firstCmd = "", firstReason = "";
-        foreach (var line in recent)
-        {
-            int bi = line.IndexOf("BLOCKED |");
-            if (bi < 0) continue;
-            string rest = line.Substring(bi + "BLOCKED |".Length).Trim();
-            // Split into at most 4 fields (cmd | target | reason | ...). Pipes
-            // inside values do not leak into the reason field.
-            var parts = rest.Split(new[] { '|' }, 4);
-            if (parts.Length == 0) continue;
-            string cmd = parts[0].Trim();
-            string field2 = parts.Length >= 2 ? parts[1].Trim() : "";
-            string reason = parts.Length >= 4
-                ? parts[3].Trim()
-                : parts[parts.Length - 1].Trim();
-
-            if (string.Equals(field2, "git-flood", StringComparison.OrdinalIgnoreCase))
-                hasGitFlood = true;
-            else if (string.Equals(field2, "git-leak", StringComparison.OrdinalIgnoreCase))
-                hasGitLeak = true;
-            else if (string.Equals(field2, "http-api", StringComparison.OrdinalIgnoreCase))
-                hasHttpApi = true;
-            else if (string.Equals(field2, "ps-encoding", StringComparison.OrdinalIgnoreCase))
-                hasPsUtf8 = true;
-            else if (cmd.StartsWith("git ", StringComparison.OrdinalIgnoreCase)
-                || cmd.Equals("git", StringComparison.OrdinalIgnoreCase)
-                || cmd.StartsWith("Git", StringComparison.OrdinalIgnoreCase))
-                hasGit = true;
-            else
-                hasDelete = true;
-
-            if (firstCmd.Length == 0)
-            {
-                firstCmd = cmd;
-                firstReason = reason;
-            }
-        }
-
-        int distinctLayers = (hasGit ? 1 : 0) + (hasDelete ? 1 : 0)
-            + (hasGitFlood ? 1 : 0) + (hasGitLeak ? 1 : 0) + (hasHttpApi ? 1 : 0) + (hasPsUtf8 ? 1 : 0);
-        string title;
-        if (distinctLayers > 1) title = Loc.T("toast.multi");
-        else if (hasGitFlood) title = Loc.T("toast.git_flood");
-        else if (hasGitLeak) title = Loc.T("toast.git_leak");
-        else if (hasHttpApi) title = Loc.T("toast.http_api");
-        else if (hasPsUtf8) title = Loc.T("toast.ps_utf8");
-        else if (hasGit) title = Loc.T("toast.git");
-        else title = Loc.T("toast.delete");
-        if (count > 1) title += " (" + count + ")";
-
-        string msg;
-        if (count == 1 && firstCmd.Length > 0)
-        {
-            string cmdShort = firstCmd.Length > 70 ? firstCmd.Substring(0, 67) + "..." : firstCmd;
-            msg = cmdShort;
-            if (firstReason.Length > 0) msg += "\n" + firstReason;
-            msg += "\n\n" + Loc.T("toast.details");
-        }
-        else
-        {
-            msg = (count == 1 ? Loc.T("toast.one_prevented") : Loc.F("toast.many_prevented", count))
-                  + "\n" + Loc.T("toast.details");
-        }
-
-        _toast.ShowToast(title, msg, 10000);
-    }
-
     Drawing.Icon MakeShieldIcon(Color c)
     {
         using (var bmp = new Drawing.Bitmap(16, 16))
@@ -450,11 +296,7 @@ partial class MainPanel : Window
     {
         _allowClose = true;
         if (_watcher != null) _watcher.Stop();
-        if (_fsWatcher != null)
-        {
-            try { _fsWatcher.EnableRaisingEvents = false; _fsWatcher.Dispose(); } catch { }
-            _fsWatcher = null;
-        }
+        DisposeFsWatcher();
         if (_tray != null)
         {
             _tray.Visible = false;

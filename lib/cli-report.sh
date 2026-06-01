@@ -75,6 +75,8 @@ do_status() {
         echo "    Git:      ${SHELL_SECURE_GIT_PROTECT:-true}"
         echo "    GitFlood: ${SHELL_SECURE_GIT_FLOOD_PROTECT:-true}"
         echo "    GitLeak:  ${SHELL_SECURE_GIT_LEAK_PROTECT:-true} (${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}s)"
+        echo "    Corrupt:  ${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
+        echo "    WriteAudit: ${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false} (opt-in)"
         echo "    HTTP/API: ${SHELL_SECURE_HTTP_API_PROTECT:-true}"
         echo "    PS-UTF8:  ${SHELL_SECURE_PS_ENCODING_PROTECT:-true}"
         echo ""

@@ -321,6 +321,9 @@ $protectionSlices = @(
     "lib\protection-ps.sh",
     "lib\protection-http.sh",
     "lib\protection-git-leak.sh",
+    "lib\protection-git-corruption.sh",
+    "lib\protection-write-audit.sh",
+    "lib\protection-git-flood.sh",
     "lib\protection-git.sh",
     "lib\protection-env.sh"
 )

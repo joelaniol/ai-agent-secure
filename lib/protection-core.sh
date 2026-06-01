@@ -2,8 +2,9 @@
 # Purpose: shared variables, config parser, path utilities, log writer, and the generic
 #          delete-block diagnostic. Used by every other protection slice.
 # Scope: no command wrappers; those live in protection-delete.sh / protection-ps.sh /
-#        protection-http.sh / protection-git-leak.sh / protection-git.sh /
-#        protection-env.sh.
+#        protection-http.sh / protection-git-leak.sh /
+#        protection-git-corruption.sh / protection-write-audit.sh /
+#        protection-git-flood.sh / protection-git.sh / protection-env.sh.
 
 # Robust HOME detection (fallback if HOME is empty)
 : "${HOME:=$(cd ~ 2>/dev/null && pwd)}"
@@ -28,6 +29,12 @@ SHELL_SECURE_GIT_FLOOD_WINDOW=60
 # agents may use SHELL_SECURE_GIT_LEAK_FORCE=1 for an audited one-shot bypass.
 SHELL_SECURE_GIT_LEAK_PROTECT=true
 SHELL_SECURE_GIT_LEAK_TIMEOUT=60
+# Git corruption protection: block CRCRLF line-ending damage before it enters
+# the index or a commit. The force env var is an audited one-shot bypass.
+SHELL_SECURE_CORRUPTION_PROTECT=true
+# Local write audit for cat/tee redirections is opt-in because it buffers
+# audited streams. The git add/commit guard is the default fail-closed boundary.
+SHELL_SECURE_WRITE_AUDIT_PROTECT=false
 # HTTP/API protection: block authenticated curl calls with destructive API
 # semantics (DELETE or POST/PATCH/PUT with delete/drop/purge/... payload).
 SHELL_SECURE_HTTP_API_PROTECT=true
@@ -96,6 +103,8 @@ _ss_load_config() {
     SHELL_SECURE_GIT_FLOOD_WINDOW=60
     SHELL_SECURE_GIT_LEAK_PROTECT=true
     SHELL_SECURE_GIT_LEAK_TIMEOUT=60
+    SHELL_SECURE_CORRUPTION_PROTECT=true
+    SHELL_SECURE_WRITE_AUDIT_PROTECT=false
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
@@ -165,6 +174,16 @@ _ss_load_config() {
 
         if [[ "$trimmed" =~ ^SHELL_SECURE_GIT_LEAK_TIMEOUT[[:space:]]*=[[:space:]]*([0-9]+)$ ]]; then
             SHELL_SECURE_GIT_LEAK_TIMEOUT="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$trimmed" =~ ^SHELL_SECURE_CORRUPTION_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_CORRUPTION_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$trimmed" =~ ^SHELL_SECURE_WRITE_AUDIT_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_WRITE_AUDIT_PROTECT="${BASH_REMATCH[1]}"
             continue
         fi
 
@@ -358,6 +377,14 @@ _ss_git_flood_protect_enabled() {
 
 _ss_git_leak_protect_enabled() {
     _ss_runtime_enabled && [ "$SHELL_SECURE_GIT_LEAK_PROTECT" = "true" ]
+}
+
+_ss_corruption_protect_enabled() {
+    _ss_runtime_enabled && [ "$SHELL_SECURE_CORRUPTION_PROTECT" = "true" ]
+}
+
+_ss_write_audit_protect_enabled() {
+    _ss_corruption_protect_enabled && [ "$SHELL_SECURE_WRITE_AUDIT_PROTECT" = "true" ]
 }
 
 _ss_http_api_protect_enabled() {

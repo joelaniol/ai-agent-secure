@@ -286,6 +286,22 @@ partial class MainPanel
         stack.Children.Add(Sp(10));
 
         stack.Children.Add(BuildExpandableToggleRow(
+            "corruption",
+            Loc.T("settings.corruption.title"),
+            Loc.T("settings.corruption.hint"),
+            Detail(
+                "settings.details.corruption.blocked.add",
+                "settings.details.corruption.blocked.commit",
+                "settings.details.corruption.blocked.commit_all",
+                "settings.details.corruption.blocked.commit_pathspec"),
+            Detail(
+                "settings.details.corruption.allowed.clean",
+                "settings.details.corruption.allowed.existing",
+                "settings.details.corruption.allowed.force"),
+            out _corruptionToggle, out _corruptionDot, DoToggleCorruption));
+        stack.Children.Add(Sp(10));
+
+        stack.Children.Add(BuildExpandableToggleRow(
             "git_flood",
             Loc.T("settings.git_flood.title"),
             Loc.T("settings.git_flood.hint"),
@@ -394,6 +410,7 @@ partial class MainPanel
         SetToggleVisual(_deleteToggle, _deleteDot, _cfg.DeleteProtect);
         SetToggleVisual(_gitToggle, _gitDot, _cfg.GitProtect);
         SetToggleVisual(_gitLeakToggle, _gitLeakDot, _cfg.GitLeakProtect);
+        SetToggleVisual(_corruptionToggle, _corruptionDot, _cfg.CorruptionProtect);
         SetToggleVisual(_gitFloodToggle, _gitFloodDot, _cfg.GitFloodProtect);
         SetToggleVisual(_httpApiToggle, _httpApiDot, _cfg.HttpApiProtect);
         SetToggleVisual(_psEncodingToggle, _psEncodingDot, _cfg.PsEncodingProtect);

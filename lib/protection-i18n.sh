@@ -33,6 +33,8 @@ declare -gA _SS_TEXTS_EN=(
     [block.layer.git]="Shell-Secure (Git Protection)"
     [block.layer.git_flood]="Shell-Secure (Git Flood Protection)"
     [block.layer.git_leak]="Shell-Secure (Git Leak Protection)"
+    [block.layer.git_corruption]="Shell-Secure (Git Corruption Protection)"
+    [block.layer.write_corruption]="Shell-Secure (Write Corruption Audit)"
     [block.layer.http_api]="Shell-Secure (HTTP API Protection)"
     [block.layer.ps_encoding]="Shell-Secure (PowerShell UTF-8 Protection)"
 )

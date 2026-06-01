@@ -1,8 +1,8 @@
-# Read this file first when changing git destructive guards or the flood limiter.
-# Purpose: all git wrappers - destructive guards, network-call flood limiter,
-#          and dispatch into protection-git-leak.sh for push leak checks.
-# Scope: relies on protection-core.sh helpers and protection-git-leak.sh for
-#        push leak detection.
+# Read this file first when changing git destructive guards or git dispatch.
+# Purpose: all git wrappers - destructive guards and dispatch into sibling
+#          git protection slices.
+# Scope: relies on protection-core.sh helpers and sibling slices for push leak
+#        detection and CRCRLF corruption detection.
 
 # ── git stash wrapper ───────────────────────────────────────
 # Background: agents often run "git stash" without a clean stash lifecycle and
@@ -423,121 +423,6 @@ _ss_block_worktree_overwrite() {
     return 1
 }
 
-# ── git flood wrapper ───────────────────────────────────────
-# Background: when an agent spins out it can issue dozens of push/pull/fetch
-# calls within seconds. Without a credential helper, each one triggers an auth
-# prompt; with a helper, it can create accidental push/pull loops. Limit network
-# git calls with token-bucket-like logic: at most N calls in a W-second window,
-# persisted through a small state file.
-
-# True when the subcommand usually touches the network and therefore triggers
-# the auth pipeline. Only these are counted; "git status" often runs 20x/min in
-# agent loops and would otherwise false-positive constantly. "remote update"
-# does not count because "git remote -v" needs no network and here we only see
-# the subcommand token before "remote ..." arguments.
-_ss_git_subcommand_is_network() {
-    case "$1" in
-        push|pull|fetch|clone|ls-remote)
-            return 0
-            ;;
-    esac
-    return 1
-}
-
-# Read the rate log file, discard entries outside the window, and decide whether
-# there is room for another call. On allow, append and persist the current call;
-# on block, leave the counter unchanged (otherwise the next legitimate call
-# could be blocked incorrectly as soon as the newly fired entry falls out of the
-# window). Return code 0 = allow, 1 = block.
-_ss_git_flood_record_and_check() {
-    local subcommand="$1"
-    local rate_log="$SHELL_SECURE_DIR/git-rate.log"
-    local threshold="${SHELL_SECURE_GIT_FLOOD_THRESHOLD:-4}"
-    local window="${SHELL_SECURE_GIT_FLOOD_WINDOW:-60}"
-
-    # Sanity: non-numeric / zero / negative values -> hard defaults.
-    [[ "$threshold" =~ ^[0-9]+$ ]] || threshold=4
-    [[ "$window"    =~ ^[0-9]+$ ]] || window=60
-    [ "$threshold" -lt 1 ] && threshold=4
-    [ "$window"    -lt 1 ] && window=60
-
-    local now start
-    now=$(date +%s)
-    start=$((now - window))
-
-    mkdir -p "$SHELL_SECURE_DIR" 2>/dev/null || true
-
-    local kept=""
-    local count=0
-    if [ -f "$rate_log" ]; then
-        local ts rest
-        while IFS=' ' read -r ts rest; do
-            [[ "$ts" =~ ^[0-9]+$ ]] || continue
-            if [ "$ts" -ge "$start" ]; then
-                kept+="$ts $rest"$'\n'
-                count=$((count + 1))
-            fi
-        done < "$rate_log"
-    fi
-
-    if [ "$count" -ge "$threshold" ]; then
-        # Do NOT increment the counter: a blocked call must not become the
-        # source of later blocks.
-        printf '%s' "$kept" > "$rate_log" 2>/dev/null || true
-        return 1
-    fi
-
-    kept+="$now $subcommand"$'\n'
-    printf '%s' "$kept" > "$rate_log" 2>/dev/null || true
-    return 0
-}
-
-_ss_block_git_flood() {
-    local subcommand="$1"; shift
-    local full="${_ss_git_command_name:-git} $*"
-    local threshold="${SHELL_SECURE_GIT_FLOOD_THRESHOLD:-4}"
-    local window="${SHELL_SECURE_GIT_FLOOD_WINDOW:-60}"
-    local lang
-    lang=$(_ss_lang)
-
-    _ss_git_block_header "$(_ss_t block.layer.git_flood)" "$full"
-    if [ "$lang" = "de" ]; then
-        echo "  $(_ss_t block.label.reason)Mehr als $threshold Netzwerk-git-Aufrufe in den letzten ${window}s." >&2
-        echo "                 Ein durchdrehender Agent kann sonst Auth-Prompts spammen oder" >&2
-        echo "                 versehentliche Push/Pull-Loops triggern." >&2
-    else
-        echo "  $(_ss_t block.label.reason)More than $threshold network git calls in the last ${window}s." >&2
-        echo "                 A runaway agent would otherwise spam the auth prompt or" >&2
-        echo "                 trigger unintended push/pull loops." >&2
-    fi
-    _ss_block_rule
-    echo "  $(_ss_t block.section.better_way)" >&2
-    if [ "$lang" = "de" ]; then
-        echo "    git config --global credential.helper manager   # einmaliges Login statt Spam" >&2
-        echo "    Pause einlegen und prüfen, was die Aufrufe verursacht." >&2
-    else
-        echo "    git config --global credential.helper manager   # one-time login instead of spam" >&2
-        echo "    Pause and review what is firing the calls." >&2
-    fi
-    _ss_block_rule
-    echo "  $(_ss_t block.section.tune_threshold)" >&2
-    if [ "$lang" = "de" ]; then
-        echo "    SHELL_SECURE_GIT_FLOOD_THRESHOLD=N    (max Calls)" >&2
-        echo "    SHELL_SECURE_GIT_FLOOD_WINDOW=Sek     (Fensterlänge)" >&2
-        echo "    SHELL_SECURE_GIT_FLOOD_PROTECT=false  (komplett aus)" >&2
-        echo "    -> in ~/.shell-secure/config.conf setzen, Shell neu laden." >&2
-    else
-        echo "    SHELL_SECURE_GIT_FLOOD_THRESHOLD=N    (max calls)" >&2
-        echo "    SHELL_SECURE_GIT_FLOOD_WINDOW=secs    (window length)" >&2
-        echo "    SHELL_SECURE_GIT_FLOOD_PROTECT=false  (disable entirely)" >&2
-        echo "    -> set in ~/.shell-secure/config.conf, then reload the shell." >&2
-    fi
-    _ss_block_rule
-    echo "" >&2
-    _ss_log "BLOCKED | $full | git-flood | $subcommand: >${threshold} in ${window}s"
-    return 1
-}
-
 # ── git branch -D wrapper ───────────────────────────────────
 # Background: "git branch -D <name>" deletes a branch even when its commits are
 # not merged into HEAD. Those commits then live only in Reflog (~90 days by
@@ -687,8 +572,9 @@ git() {
     #   1) Destructive subcommands (stash/reset/clean/checkout/...) -> GIT_PROTECT
     #   2) Flood/spam of network calls (push/pull/...)              -> GIT_FLOOD_PROTECT
     #   3) Potential secret/agent-file pushes                       -> GIT_LEAK_PROTECT
+    #   4) CRCRLF line-ending corruption before add/commit          -> CORRUPTION_PROTECT
     # When all are off, pass through without parsing overhead.
-    if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled && ! _ss_git_leak_protect_enabled; then
+    if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled && ! _ss_git_leak_protect_enabled && ! _ss_corruption_protect_enabled; then
         command git "$@"
         return $?
     fi
@@ -740,6 +626,18 @@ git() {
             return 1
         fi
         _ss_git_pre_opts=()
+    fi
+
+    if _ss_corruption_protect_enabled && { [ "$sub" = "add" ] || [ "$sub" = "commit" ]; }; then
+        _ss_git_pre_opts=("${pre_opts[@]}")
+        _ss_git_corruption_full="${_ss_git_command_name:-git} $*"
+        if ! _ss_git_corruption_guard_git_command "$sub" "${stash_args[@]}"; then
+            _ss_git_pre_opts=()
+            _ss_git_corruption_full=""
+            return 1
+        fi
+        _ss_git_pre_opts=()
+        _ss_git_corruption_full=""
     fi
 
     # From here on, only destructive subcommand guards remain. If the toggle is

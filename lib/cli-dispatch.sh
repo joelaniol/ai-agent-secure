@@ -30,6 +30,8 @@ do_help() {
     echo "    git-leak <sub>    Git-Leak-Schutz für Pushes steuern:"
     echo "                        enable|disable|show"
     echo "                        timeout <s>     Allow-Fenster in Sekunden"
+    echo "    corruption <sub>  Git-Korruptions-Schutz (CRCRLF) steuern:"
+    echo "                        enable|disable|show"
     echo "    ps-utf8 <sub>     PowerShell-UTF-8-Pflicht steuern:"
     echo "                        enable|disable|show"
     echo "    http-api <sub>    Curl HTTP/API-Schutz steuern:"
@@ -42,6 +44,7 @@ do_help() {
     echo "    shell-secure disable"
     echo "    shell-secure flood threshold 8"
     echo "    shell-secure git-leak timeout 30"
+    echo "    shell-secure corruption show"
     echo "    shell-secure ps-utf8 disable"
     echo "    shell-secure http-api show"
     echo ""
@@ -68,6 +71,7 @@ main() {
         whitelist)  do_whitelist "${1:-}" ;;
         flood)      do_flood "${1:-}" "${2:-}" ;;
         git-leak)   do_git_leak "${1:-}" "${2:-}" ;;
+        corruption) do_corruption "${1:-}" ;;
         ps-utf8)    do_ps_utf8 "${1:-}" ;;
         http-api)   do_http_api "${1:-}" ;;
         log)        do_log "${1:-20}" ;;

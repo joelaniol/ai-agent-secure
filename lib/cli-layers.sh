@@ -1,6 +1,6 @@
 # Read this file first when changing Shell-Secure CLI layer toggles.
 # Purpose: manage per-protection-layer CLI subcommands such as flood, git-leak,
-#          ps-utf8, and http-api.
+#          corruption, ps-utf8, and http-api.
 # Scope: protected path and whitelist mutations stay in cli-manage.sh.
 
 _cli_load_config_or_err() {
@@ -100,6 +100,33 @@ do_git_leak() {
         *)
             err "Unbekanntes Sub-Kommando: shell-secure git-leak $sub"
             echo "  Verwendung: shell-secure git-leak enable|disable|timeout <s>|show"
+            return 1
+            ;;
+    esac
+}
+
+do_corruption() {
+    local sub="${1:-show}"
+    _cli_load_config_or_err || return 1
+    local config="$INSTALL_DIR/config.conf"
+
+    case "$sub" in
+        enable|on)
+            SHELL_SECURE_CORRUPTION_PROTECT=true
+            cfg_write "$config"
+            ok "Git-Korruptions-Schutz aktiviert (CRCRLF-Detector)."
+            ;;
+        disable|off)
+            SHELL_SECURE_CORRUPTION_PROTECT=false
+            cfg_write "$config"
+            ok "Git-Korruptions-Schutz deaktiviert."
+            ;;
+        show|"")
+            echo "  Git-Korruptions-Schutz: ${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
+            ;;
+        *)
+            err "Unbekanntes Sub-Kommando: shell-secure corruption $sub"
+            echo "  Verwendung: shell-secure corruption enable|disable|show"
             return 1
             ;;
     esac

@@ -89,6 +89,16 @@ do_status() {
     else
         echo -e "    ${Y}!${NC} Git-Leak-Schutz deaktiviert"
     fi
+    if [ "${SHELL_SECURE_CORRUPTION_PROTECT:-true}" = "true" ]; then
+        echo -e "    ${G}+${NC} Git-Korruptions-Schutz (CRCRLF-Detector)"
+    else
+        echo -e "    ${Y}!${NC} Git-Korruptions-Schutz deaktiviert"
+    fi
+    if [ "${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false}" = "true" ]; then
+        echo -e "    ${Y}!${NC} Lokaler Write-Audit aktiv (cat/tee werden gepuffert)"
+    else
+        echo -e "    ${G}+${NC} Lokaler Write-Audit aus (keine cat/tee-Pufferung)"
+    fi
     if [ "${SHELL_SECURE_HTTP_API_PROTECT:-true}" = "true" ]; then
         echo -e "    ${G}+${NC} HTTP/API-Schutz für curl"
     else
