@@ -2,7 +2,7 @@
 # Purpose: all git wrappers - destructive guards and dispatch into sibling
 #          git protection slices.
 # Scope: relies on protection-core.sh helpers and sibling slices for push leak
-#        detection and CRCRLF corruption detection.
+#        detection and byte-level (CRCRLF + control-byte) corruption detection.
 
 # ── git stash wrapper ───────────────────────────────────────
 # Background: agents often run "git stash" without a clean stash lifecycle and
@@ -572,7 +572,7 @@ git() {
     #   1) Destructive subcommands (stash/reset/clean/checkout/...) -> GIT_PROTECT
     #   2) Flood/spam of network calls (push/pull/...)              -> GIT_FLOOD_PROTECT
     #   3) Potential secret/agent-file pushes                       -> GIT_LEAK_PROTECT
-    #   4) CRCRLF line-ending corruption before add/commit          -> CORRUPTION_PROTECT
+    #   4) Byte-level corruption (CRCRLF + control bytes) on add/commit/push -> CORRUPTION_PROTECT
     # When all are off, pass through without parsing overhead.
     if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled && ! _ss_git_leak_protect_enabled && ! _ss_corruption_protect_enabled; then
         command git "$@"
@@ -628,7 +628,7 @@ git() {
         _ss_git_pre_opts=()
     fi
 
-    if _ss_corruption_protect_enabled && { [ "$sub" = "add" ] || [ "$sub" = "commit" ]; }; then
+    if _ss_corruption_protect_enabled && { [ "$sub" = "add" ] || [ "$sub" = "commit" ] || [ "$sub" = "push" ]; }; then
         _ss_git_pre_opts=("${pre_opts[@]}")
         _ss_git_corruption_full="${_ss_git_command_name:-git} $*"
         if ! _ss_git_corruption_guard_git_command "$sub" "${stash_args[@]}"; then

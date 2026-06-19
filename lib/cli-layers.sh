@@ -114,7 +114,7 @@ do_corruption() {
         enable|on)
             SHELL_SECURE_CORRUPTION_PROTECT=true
             cfg_write "$config"
-            ok "Git-Korruptions-Schutz aktiviert (CRCRLF-Detector)."
+            ok "Git-Korruptions-Schutz aktiviert (CRCRLF + Steuerzeichen, add/commit/push)."
             ;;
         disable|off)
             SHELL_SECURE_CORRUPTION_PROTECT=false

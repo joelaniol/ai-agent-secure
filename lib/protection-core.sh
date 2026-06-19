@@ -29,8 +29,8 @@ SHELL_SECURE_GIT_FLOOD_WINDOW=60
 # agents may use SHELL_SECURE_GIT_LEAK_FORCE=1 for an audited one-shot bypass.
 SHELL_SECURE_GIT_LEAK_PROTECT=true
 SHELL_SECURE_GIT_LEAK_TIMEOUT=60
-# Git corruption protection: block CRCRLF line-ending damage before it enters
-# the index or a commit. The force env var is an audited one-shot bypass.
+# Git corruption protection: block CRCRLF + forbidden control bytes before they
+# enter the index, a commit, or a push. The force env var is an audited one-shot bypass.
 SHELL_SECURE_CORRUPTION_PROTECT=true
 # Local write audit for cat/tee redirections is opt-in because it buffers
 # audited streams. The git add/commit guard is the default fail-closed boundary.
@@ -316,6 +316,25 @@ _ss_is_safe_target() {
         fi
     done
     return 1
+}
+
+_ss_is_windows_temp_target() {
+    local target
+    target=$(_ss_normalize "$1")
+
+    # Fail closed for parents and lookalikes: dot-dot is already collapsed by
+    # _ss_normalize, and the regexes require the real Temp segment boundary.
+    if [[ "$target" =~ ^/[a-z]/windows/temp($|/) ]]; then
+        return 0
+    fi
+    if [[ "$target" =~ ^/[a-z]/users/[^/]+/appdata/local/temp($|/) ]]; then
+        return 0
+    fi
+    return 1
+}
+
+_ss_is_safe_delete_target() {
+    _ss_is_windows_temp_target "$1" || _ss_is_safe_target "$1"
 }
 
 _ss_has_recursive_flag() {

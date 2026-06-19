@@ -169,7 +169,7 @@ cfg_write() {
         echo "SHELL_SECURE_GIT_LEAK_PROTECT=${SHELL_SECURE_GIT_LEAK_PROTECT:-true}"
         echo "SHELL_SECURE_GIT_LEAK_TIMEOUT=${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}"
         echo ""
-        echo "# Git corruption protection: block CRCRLF line-ending damage before add/commit"
+        echo "# Git corruption protection: block CRCRLF + forbidden control bytes on add/commit/push"
         echo "SHELL_SECURE_CORRUPTION_PROTECT=${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
         echo ""
         echo "# Local write audit for cat/tee redirections: opt-in, buffers audited streams"

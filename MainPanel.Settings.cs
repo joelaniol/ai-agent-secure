@@ -293,7 +293,8 @@ partial class MainPanel
                 "settings.details.corruption.blocked.add",
                 "settings.details.corruption.blocked.commit",
                 "settings.details.corruption.blocked.commit_all",
-                "settings.details.corruption.blocked.commit_pathspec"),
+                "settings.details.corruption.blocked.commit_pathspec",
+                "settings.details.corruption.blocked.push"),
             Detail(
                 "settings.details.corruption.allowed.clean",
                 "settings.details.corruption.allowed.existing",

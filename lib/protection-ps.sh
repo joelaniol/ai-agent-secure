@@ -308,11 +308,12 @@ powershell() {
             local target
             target=$(_ss_extract_powershell_target "$cmd_index" || true)
             target=$(_ss_strip_wrapping_quotes "$target")
+            target=$(_ss_expand_powershell_env_path "$target")
 
             if [ -n "$target" ]; then
                 local resolved
                 resolved=$(_ss_resolve "$target")
-                if _ss_is_protected "$resolved" && ! _ss_is_safe_target "$resolved"; then
+                if _ss_is_protected "$resolved" && ! _ss_is_safe_delete_target "$resolved"; then
                     local reason safer
                     if [ "$(_ss_lang)" = "de" ]; then
                         reason="Rekursives Löschen (PowerShell) in geschütztem Bereich"

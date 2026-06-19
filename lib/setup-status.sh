@@ -90,7 +90,7 @@ do_status() {
         echo -e "    ${Y}!${NC} Git-Leak-Schutz deaktiviert"
     fi
     if [ "${SHELL_SECURE_CORRUPTION_PROTECT:-true}" = "true" ]; then
-        echo -e "    ${G}+${NC} Git-Korruptions-Schutz (CRCRLF-Detector)"
+        echo -e "    ${G}+${NC} Git-Korruptions-Schutz (CRCRLF + Steuerzeichen, add/commit/push)"
     else
         echo -e "    ${Y}!${NC} Git-Korruptions-Schutz deaktiviert"
     fi

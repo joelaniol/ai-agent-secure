@@ -4,8 +4,8 @@
 #          lives in protection-ps.sh because it shares its wrapper with the
 #          UTF-8 enforcement layer.
 # Scope: relies on protection-core.sh helpers (_ss_resolve, _ss_is_protected,
-#        _ss_is_safe_target, _ss_block, _ss_delete_protect_enabled) and on
-#        _ss_strip_wrapping_quotes from protection-core.sh.
+#        _ss_is_safe_delete_target, _ss_block, _ss_delete_protect_enabled)
+#        and on _ss_strip_wrapping_quotes from protection-core.sh.
 
 # ── rm wrapper ───────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ rm() {
             for arg in "${targets[@]}"; do
                 local resolved
                 resolved=$(_ss_resolve "$arg")
-                if _ss_is_protected "$resolved" && ! _ss_is_safe_target "$resolved"; then
+                if _ss_is_protected "$resolved" && ! _ss_is_safe_delete_target "$resolved"; then
                     local reason safer
                     if [ "$(_ss_lang)" = "de" ]; then
                         reason="Rekursives Löschen in geschütztem Bereich"
@@ -80,7 +80,7 @@ cmd() {
         if [ -n "$target" ]; then
             local resolved
             resolved=$(_ss_resolve "$target")
-            if _ss_is_protected "$resolved" && ! _ss_is_safe_target "$resolved"; then
+            if _ss_is_protected "$resolved" && ! _ss_is_safe_delete_target "$resolved"; then
                 local reason safer
                 if [ "$(_ss_lang)" = "de" ]; then
                     reason="rmdir /s in geschütztem Bereich"

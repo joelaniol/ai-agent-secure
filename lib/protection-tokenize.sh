@@ -164,3 +164,39 @@ _ss_extract_powershell_target() {
     done
     return 1
 }
+
+_ss_expand_powershell_env_path() {
+    local target="$1"
+    local lower="${target,,}"
+    local value="" rest=""
+
+    # Keep this intentionally narrow: TEMP/TMP are expanded only so the
+    # delete guard can validate the resulting path against hard Temp roots.
+    if [[ "$lower" == '$env:temp'* ]]; then
+        rest="${target:9}"
+        if [[ -z "$rest" || "$rest" == /* || "$rest" == \\* ]]; then
+            value="${TEMP:-${TMP:-}}"
+        fi
+    elif [[ "$lower" == '$env:tmp'* ]]; then
+        rest="${target:8}"
+        if [[ -z "$rest" || "$rest" == /* || "$rest" == \\* ]]; then
+            value="${TMP:-${TEMP:-}}"
+        fi
+    elif [[ "$lower" == '${env:temp}'* ]]; then
+        rest="${target:11}"
+        if [[ -z "$rest" || "$rest" == /* || "$rest" == \\* ]]; then
+            value="${TEMP:-${TMP:-}}"
+        fi
+    elif [[ "$lower" == '${env:tmp}'* ]]; then
+        rest="${target:10}"
+        if [[ -z "$rest" || "$rest" == /* || "$rest" == \\* ]]; then
+            value="${TMP:-${TEMP:-}}"
+        fi
+    fi
+
+    if [ -n "$value" ]; then
+        printf '%s%s' "$value" "$rest"
+    else
+        printf '%s' "$target"
+    fi
+}

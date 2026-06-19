@@ -11,7 +11,7 @@
 #         protection-ps.sh          - PowerShell UTF-8 enforcement + wrapper
 #         protection-http.sh        - curl authenticated destructive API guard
 #         protection-git-leak.sh    - git push leak detector
-#         protection-git-corruption.sh - CRCRLF git add/commit detector
+#         protection-git-corruption.sh - CRCRLF + control-byte add/commit/push detector
 #         protection-write-audit.sh - terminal write CRCRLF audit
 #         protection-git-flood.sh   - network git call flood limiter
 #         protection-git.sh         - git destructive guards + dispatch
