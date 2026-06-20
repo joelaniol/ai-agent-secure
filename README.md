@@ -1,7 +1,7 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.1.7` | Build `20260619.023031` | Built `2026-06-19 02:30:31 UTC`
+**Current version:** `1.1.8` | Build `20260620.191932` | Built `2026-06-20 19:19:32 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->
@@ -251,7 +251,7 @@ Paths are normalized before comparison:
 - **Logging** — Every blocked command is logged with a timestamp
 - **On/Off** — Disable protection at any time without uninstalling
 - **Non-interactive shells** — Also active in scripts and subshells via `BASH_ENV`
-- **Manual release** — Intentional local deletion/git mutation is possible with the usual shell bypass; reviewed leak pushes use `SHELL_SECURE_GIT_LEAK_FORCE=1`; reviewed CRCRLF exceptions use `SHELL_SECURE_CORRUPTION_FORCE=1` for Git/write-audit or `SHELL_SECURE_WRITE_AUDIT_FORCE=1` for write-audit only; destructive HTTP/API calls are routed through explicit user permission and the `SHELL_SECURE_HTTP_API_PROTECT` toggle instead of a one-line bypass hint
+- **Manual release** — Intentional local deletion/git mutation is possible with the usual shell bypass; reviewed leak pushes use `SHELL_SECURE_GIT_LEAK_FORCE=1`; reviewed CRCRLF exceptions use `SHELL_SECURE_CORRUPTION_FORCE=1` for Git/write-audit or `SHELL_SECURE_WRITE_AUDIT_FORCE=1` for write-audit only; verified vendored files (byte-identical to a trusted upstream) can be permanently exempted by their content SHA256 in `~/.shell-secure/corruption-allowlist` instead of forcing every commit; destructive HTTP/API calls are routed through explicit user permission and the `SHELL_SECURE_HTTP_API_PROTECT` toggle instead of a one-line bypass hint
 
 ## Installation
 
@@ -306,7 +306,8 @@ SHELL_SECURE_GIT_FLOOD_WINDOW=60      # seconds
 # Git leak protection: warn before pushing likely secret or agent workspace files
 SHELL_SECURE_GIT_LEAK_PROTECT=true
 SHELL_SECURE_GIT_LEAK_TIMEOUT=60      # seconds to type "allow"
-# Git corruption protection: block CRCRLF + control bytes on add/commit/push
+# Git corruption protection: block CRCRLF + control bytes on add/commit/push.
+# Exempt verified vendored files via ~/.shell-secure/corruption-allowlist (content SHA256 per line).
 SHELL_SECURE_CORRUPTION_PROTECT=true
 # Optional early audit for cat/tee redirections; default off to avoid buffering broad shell pipelines
 SHELL_SECURE_WRITE_AUDIT_PROTECT=false
@@ -460,8 +461,28 @@ $ git add assets/geolib/en/states/MX-CHP.json
     Leave every other byte unchanged; do not re-encode the file.
     Then rerun the guard and 'git diff --check'.
   ------------------------------------
-  Manual release (only after verifying the bytes are intentional):
-    SHELL_SECURE_CORRUPTION_FORCE=1 git ...
+  Manual release - BOTH options below require EXPLICIT USER CONFIRMATION first.
+  AGENT: do NOT self-bypass. Stop, show the user the affected path and its
+  SHA256, explain why the bytes are intentional, and wait for an explicit OK.
+  Do NOT write the allowlist or set the force variable on your own initiative.
+
+  (a) One-shot bypass for this single command (not persisted):
+        SHELL_SECURE_CORRUPTION_FORCE=1 git ...
+
+  (b) Persistent allowlist - ONLY for files verified byte-identical to a
+      trusted upstream (e.g. a vendored minified library that legitimately
+      embeds these bytes); NEVER for files you or a tool just produced:
+        1. Verify the file matches its upstream source (compare SHA256).
+        2. sha256sum "<path>"   # worktree digest - works for add, and for
+                                # commit/push too while the worktree file is
+                                # the unchanged source of the committed blob.
+        3. After the user confirms, append that 64-hex digest (one per line) to:
+             ~/.shell-secure/corruption-allowlist
+      Matching is by exact content: any later byte change re-arms the guard.
+      If a commit/push still blocks (e.g. the worktree changed, or eol/filter
+      normalization makes the stored blob differ), list the BLOB digest instead:
+        git cat-file -p ":<path>"     | sha256sum   # staged blob (commit)
+        git cat-file -p "HEAD:<path>" | sha256sum   # committed blob (push)
   ------------------------------------
 ```
 
@@ -589,6 +610,10 @@ SHELL_SECURE_GIT_LEAK_FORCE=1 git push   # OK after deliberate review, logged
 printf 'bad\r\r\n' > broken.txt
 git add broken.txt                       # BLOCKED
 SHELL_SECURE_CORRUPTION_FORCE=1 git add broken.txt  # OK after byte-level review, logged
+
+# Verified vendored libs (legit control bytes) get a persistent content-hash exemption
+sha256sum vendor/xterm.js >> ~/.shell-secure/corruption-allowlist  # after confirming it matches upstream
+git add vendor/xterm.js                  # OK; any byte change re-arms the guard, logged as ALLOWLISTED
 
 # PowerShell writes need explicit UTF-8 encoding
 powershell -c "Set-Content -Encoding utf8 file.txt 'content'"   # OK

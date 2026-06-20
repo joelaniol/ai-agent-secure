@@ -1,3 +1,26 @@
+# AI Agent Secure v1.1.8
+
+## Features
+
+- Added a **content-hash allowlist** for Git Corruption Protection. Files whose byte content is verified intentional — e.g. a vendored minified library such as `xterm.js` that legitimately embeds control bytes — can be exempted by adding their **SHA256 content digest** (one 64-hex digest per line, `#` for comments) to `~/.shell-secure/corruption-allowlist`. The allowlist applies to `git add`, `git commit`, and the pre-push range scan, and is read only when corruption is actually detected (no cost on clean operations).
+- The exemption is **by exact content, not by path or name**: changing a single byte yields a new hash that is no longer covered, so the guard **re-arms automatically**. Unlike a filename whitelist, a previously-vetted file can never silently absorb new corruption. Each accepted entry is audit-logged as `ALLOWLISTED | git-corruption | <path> | sha256=<hash>`, alongside the existing `FORCED` entries.
+- **EOL/filter-aware matching:** `git add` hashes the worktree file while `commit`/`push` hash the stored git blob. Under `core.autocrlf` or a `.gitattributes` text filter those byte streams differ, so a blob finding also honors the operator's worktree digest (`sha256sum <path>`) — but only when `git hash-object --path` proves the worktree file is the exact source of the scanned blob (identical OID). A committed blob that diverges from the clean worktree is never exempted, so no false negative is introduced. The block message documents the blob-digest commands for the rare case the worktree has moved on.
+- The corruption block message now documents **both** manual-release paths — the one-shot `SHELL_SECURE_CORRUPTION_FORCE=1` and the persistent allowlist — and states that an agent must **stop and obtain explicit user confirmation** before using either; it must not write the allowlist or set the force variable on its own initiative. Enforcement is honor-system plus audit log (the same trust level as the existing force bypass): a shell-write-capable agent technically can still self-bypass, but the allowlist is more granular (per-content, permanently logged) than a blanket force.
+- The GUI corruption-protection detail panel now lists the allowlist alongside the one-shot force as a reviewed manual-release path (EN + DE).
+
+## Notes
+
+- The allowlist is **fail-closed**: when `sha256sum` is unavailable, a listed hash can never be confirmed, so the finding still blocks.
+- The allowlist lives in a sidecar file rather than `config.conf`, so existing config parsers/writers (core/setup/CLI) and the GUI config round-trip are untouched. The location can be overridden for tests via `SHELL_SECURE_CORRUPTION_ALLOWLIST`.
+
+## Verification
+
+- `protection-git-corruption-selftest.sh` extended: a control-byte file blocks by default, is allowed once its content SHA256 is listed, **re-blocks after a one-byte change**, an unrelated corrupt file still blocks while the list is non-empty, a comment-only list exempts nothing, and distinct scenarios cover the commit staged-blob path, the pre-push (HEAD blob) path, the `core.autocrlf` worktree/blob divergence, and the OID-divergence safety case (a divergent committed corrupt blob is not masked by an allowlisted clean worktree).
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\run-quality.ps1 -BuildGui` full gate green; GUI rebuilt with embedded-script round-trip OK.
+- Isolated end-to-end test against the **built v1.1.8 EXE's embedded scripts** (extracted and sourced in a throwaway HOME): delete/git-destructive/corruption guards all block correctly, and the SHA allowlist allows, re-arms, and audits on add **and** push — 17/17.
+
+---
+
 # AI Agent Secure v1.1.7
 
 ## Features

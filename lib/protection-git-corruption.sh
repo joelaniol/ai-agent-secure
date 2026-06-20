@@ -4,6 +4,9 @@
 #          (01-08, 0B, 0C, 0E-1F, 7F; TAB/LF/CR stay allowed) -- on add, commit, and
 #          (range scan) push. NUL/UTF-16 content is skipped to avoid Windows false
 #          positives; NUL/BOM stay the encoding layer's job.
+#          A content-SHA256 allowlist (~/.shell-secure/corruption-allowlist) exempts
+#          files verified byte-identical to a trusted upstream (vendored minified libs);
+#          matching is by exact content so any byte change re-arms the guard.
 # Scope: no git() wrapper; protection-git.sh owns dispatch and calls this slice
 #        after _ss_git_pre_opts has been prepared.
 
@@ -15,6 +18,14 @@ declare -g _ss_git_corruption_commit_scan_tracked=false
 declare -g _ss_git_corruption_commit_include=false
 declare -g _ss_git_corruption_full=""
 declare -g _ss_git_corruption_context="commit"
+
+# Content-hash allowlist: SHA256 digests of files whose byte content is verified
+# intentional -- e.g. a vendored minified library that legitimately embeds control
+# bytes. A finding whose content hash is listed is dropped before blocking. The match
+# is by exact content, so any single byte change re-arms the guard automatically;
+# unlike a path/name whitelist, which would stay permanently blind to future
+# corruption in that file. Populated per-invocation from the sidecar file below.
+declare -Ag _ss_git_corruption_allow_hashes=()
 
 _ss_git_corruption_max_bytes() {
     local value="${SHELL_SECURE_CORRUPTION_MAX_BYTES:-20971520}"
@@ -29,6 +40,98 @@ _ss_git_corruption_force_requested() {
             ;;
     esac
     return 1
+}
+
+_ss_git_corruption_allowlist_file() {
+    printf '%s' "${SHELL_SECURE_CORRUPTION_ALLOWLIST:-$SHELL_SECURE_DIR/corruption-allowlist}"
+}
+
+# (Re)reads the allowlist file into _ss_git_corruption_allow_hashes. Called only once
+# corruption was actually detected, so re-reading on each block is cheap and keeps the
+# set current with mid-session edits (same philosophy as the per-invocation config
+# re-read). Lines are "<sha256>  optional comment"; '#' starts a comment, blanks and
+# malformed lines are ignored. The list is the human operator's instrument: an agent
+# must obtain explicit user confirmation before adding an entry (see the block text).
+_ss_git_corruption_load_allowlist() {
+    _ss_git_corruption_allow_hashes=()
+    local file line token rest
+    file=$(_ss_git_corruption_allowlist_file)
+    [ -r "$file" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        line="${line%%#*}"            # strip inline / full-line comments
+        read -r token rest <<< "$line"  # first whitespace-delimited field
+        [ -n "$token" ] || continue
+        token="${token,,}"
+        [[ "$token" =~ ^[0-9a-f]{64}$ ]] || continue
+        _ss_git_corruption_allow_hashes["$token"]=1
+    done < "$file"
+}
+
+# Allowlisting needs both a non-empty list and sha256sum. Without the hasher the guard
+# stays fail-closed: a listed hash can never be confirmed, so the finding still blocks.
+_ss_git_corruption_allowlist_active() {
+    _ss_git_corruption_load_allowlist
+    [ "${#_ss_git_corruption_allow_hashes[@]}" -gt 0 ] || return 1
+    command -v sha256sum >/dev/null 2>&1
+}
+
+_ss_git_corruption_sha256_stream() {
+    local out
+    out=$(sha256sum 2>/dev/null) || return 1
+    out="${out%% *}"
+    [ -n "$out" ] || return 1
+    printf '%s' "${out,,}"
+}
+
+# Drops findings whose verified content SHA256 is on the allowlist. "source" is
+# "worktree" (hash the file on disk) or "blob" (hash "<ref>:<path>" via git cat-file).
+# Findings are "kind\tpath" lines; prints the survivors with no trailing LF, matching
+# the raw scanners' captured-output shape. Each accepted entry is audit-logged.
+#
+# Blob findings (commit/push) additionally honor the operator's WORKTREE digest -- the
+# one `sha256sum <path>` produces and the block message documents -- but ONLY when the
+# worktree file is provably the source of the scanned blob (identical git OID after
+# attribute/eol filtering). Under core.autocrlf or a .gitattributes text filter the
+# stored blob bytes differ from the worktree bytes, so the blob SHA256 would otherwise
+# not match the single digest the operator listed at add time. The OID equality check
+# keeps this safe: a committed blob that diverges from the clean worktree (e.g. corruption
+# committed via a non-Bash write path) yields a different OID, the fallback is skipped,
+# and the finding still blocks. No false negative is introduced.
+_ss_git_corruption_apply_allowlist() {
+    local source="$1" ref="$2" findings="$3"
+    [ -n "$findings" ] || return 0
+    _ss_git_corruption_allowlist_active || { printf '%s' "$findings"; return 0; }
+
+    local line path hash blob_oid wt_oid out=""
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        path="${line#*$'\t'}"
+        hash=""
+        case "$source" in
+            worktree)
+                [ -f "$path" ] && [ -r "$path" ] && hash=$(_ss_git_corruption_sha256_stream < "$path")
+                ;;
+            blob)
+                hash=$(command git "${_ss_git_pre_opts[@]}" cat-file -p "${ref}:$path" 2>/dev/null | _ss_git_corruption_sha256_stream)
+                if [ -z "$hash" ] || [ -z "${_ss_git_corruption_allow_hashes[$hash]+x}" ]; then
+                    if [ -f "$path" ] && [ -r "$path" ]; then
+                        blob_oid=$(command git "${_ss_git_pre_opts[@]}" rev-parse --verify --quiet "${ref}:$path" 2>/dev/null)
+                        wt_oid=$(command git "${_ss_git_pre_opts[@]}" hash-object --path="$path" -- "$path" 2>/dev/null)
+                        if [ -n "$blob_oid" ] && [ "$blob_oid" = "$wt_oid" ]; then
+                            hash=$(_ss_git_corruption_sha256_stream < "$path")
+                        fi
+                    fi
+                fi
+                ;;
+        esac
+        if [ -n "$hash" ] && [ -n "${_ss_git_corruption_allow_hashes[$hash]+x}" ]; then
+            _ss_log "ALLOWLISTED | git-corruption | $path | sha256=$hash"
+            continue
+        fi
+        out+="$line"$'\n'
+    done <<< "$findings"
+    printf '%s' "${out%$'\n'}"
 }
 
 _ss_git_corruption_path_is_binary_asset() {
@@ -439,7 +542,9 @@ _ss_git_corruption_collect_worktree_findings() {
         done < <(command git "${_ss_git_pre_opts[@]}" ls-files -z --others --exclude-standard -- "${pathspecs[@]}" 2>/dev/null || true)
     fi
 
-    _ss_git_corruption_scan_worktree_paths ${candidates[@]+"${candidates[@]}"}
+    local raw
+    raw=$(_ss_git_corruption_scan_worktree_paths ${candidates[@]+"${candidates[@]}"})
+    _ss_git_corruption_apply_allowlist "worktree" "" "$raw"
 }
 
 _ss_git_corruption_collect_staged_findings() {
@@ -450,7 +555,9 @@ _ss_git_corruption_collect_staged_findings() {
         _ss_git_corruption_path_should_scan "$path" || continue
         candidates+=("$path")
     done < <(command git "${_ss_git_pre_opts[@]}" diff --cached --name-only -z --diff-filter=ACMRTUXB 2>/dev/null || true)
-    _ss_git_corruption_scan_blobs "" ${candidates[@]+"${candidates[@]}"}
+    local raw
+    raw=$(_ss_git_corruption_scan_blobs "" ${candidates[@]+"${candidates[@]}"})
+    _ss_git_corruption_apply_allowlist "blob" "" "$raw"
 }
 
 # Findings lines are "kind\tpath". Display the path and annotate the kind.
@@ -565,8 +672,28 @@ _ss_block_git_corruption() {
     echo "    Leave every other byte unchanged; do not re-encode the file." >&2
     echo "    Then rerun the guard and 'git diff --check'." >&2
     _ss_block_rule
-    echo "  Manual release (only after verifying the bytes are intentional):" >&2
-    echo "    SHELL_SECURE_CORRUPTION_FORCE=1 git ..." >&2
+    echo "  Manual release - BOTH options below require EXPLICIT USER CONFIRMATION first." >&2
+    echo "  AGENT: do NOT self-bypass. Stop, show the user the affected path and its" >&2
+    echo "  SHA256, explain why the bytes are intentional, and wait for an explicit OK." >&2
+    echo "  Do NOT write the allowlist or set the force variable on your own initiative." >&2
+    echo "" >&2
+    echo "  (a) One-shot bypass for this single command (not persisted):" >&2
+    echo "        SHELL_SECURE_CORRUPTION_FORCE=1 git ..." >&2
+    echo "" >&2
+    echo "  (b) Persistent allowlist - ONLY for files verified byte-identical to a" >&2
+    echo "      trusted upstream (e.g. a vendored minified library that legitimately" >&2
+    echo "      embeds these bytes); NEVER for files you or a tool just produced:" >&2
+    echo '        1. Verify the file matches its upstream source (compare SHA256).' >&2
+    echo '        2. sha256sum "<path>"   # worktree digest - works for add, and for' >&2
+    echo "                                # commit/push too while the worktree file is" >&2
+    echo "                                # the unchanged source of the committed blob." >&2
+    echo "        3. After the user confirms, append that 64-hex digest (one per line) to:" >&2
+    echo "             ~/.shell-secure/corruption-allowlist" >&2
+    echo "      Matching is by exact content: any later byte change re-arms the guard." >&2
+    echo "      If a commit/push still blocks (e.g. the worktree changed, or eol/filter" >&2
+    echo "      normalization makes the stored blob differ), list the BLOB digest instead:" >&2
+    echo '        git cat-file -p ":<path>"     | sha256sum   # staged blob (commit)' >&2
+    echo '        git cat-file -p "HEAD:<path>" | sha256sum   # committed blob (push)' >&2
     _ss_block_rule
     echo "" >&2
     _ss_log "BLOCKED | $full | git-corruption($context:${kinds}) | $(_ss_git_corruption_summary "$findings")"
@@ -675,6 +802,7 @@ _ss_git_corruption_guard_push() {
     done < <(command git "${_ss_git_pre_opts[@]}" diff --name-only -z --diff-filter=ACMRTUX "$range" -- 2>/dev/null || true)
     local findings
     findings=$(_ss_git_corruption_scan_blobs "HEAD" ${candidates[@]+"${candidates[@]}"})
+    findings=$(_ss_git_corruption_apply_allowlist "blob" "HEAD" "$findings")
     [ -n "$findings" ] || return 0
 
     local full="${_ss_git_corruption_full:-${_ss_git_command_name:-git} push}"
