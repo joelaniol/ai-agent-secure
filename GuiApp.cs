@@ -138,6 +138,7 @@ partial class MainPanel : Window
     Border _gitLeakToggle, _gitLeakDot;
     System.Windows.Controls.TextBox _gitLeakTimeoutInput;
     Border _corruptionToggle, _corruptionDot;
+    Border _emptyFileToggle, _emptyFileDot;
     Border _gitFloodToggle, _gitFloodDot;
     System.Windows.Controls.TextBox _gitFloodThresholdInput;
     System.Windows.Controls.TextBox _gitFloodWindowInput;

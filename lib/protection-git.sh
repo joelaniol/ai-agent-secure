@@ -574,7 +574,7 @@ git() {
     #   3) Potential secret/agent-file pushes                       -> GIT_LEAK_PROTECT
     #   4) Byte-level corruption (CRCRLF + control bytes) on add/commit/push -> CORRUPTION_PROTECT
     # When all are off, pass through without parsing overhead.
-    if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled && ! _ss_git_leak_protect_enabled && ! _ss_corruption_protect_enabled; then
+    if ! _ss_git_protect_enabled && ! _ss_git_flood_protect_enabled && ! _ss_git_leak_protect_enabled && ! _ss_corruption_protect_enabled && ! _ss_empty_file_protect_enabled; then
         command git "$@"
         return $?
     fi
@@ -632,6 +632,18 @@ git() {
         _ss_git_pre_opts=("${pre_opts[@]}")
         _ss_git_corruption_full="${_ss_git_command_name:-git} $*"
         if ! _ss_git_corruption_guard_git_command "$sub" "${stash_args[@]}"; then
+            _ss_git_pre_opts=()
+            _ss_git_corruption_full=""
+            return 1
+        fi
+        _ss_git_pre_opts=()
+        _ss_git_corruption_full=""
+    fi
+
+    if _ss_empty_file_protect_enabled && { [ "$sub" = "add" ] || [ "$sub" = "commit" ] || [ "$sub" = "push" ]; }; then
+        _ss_git_pre_opts=("${pre_opts[@]}")
+        _ss_git_corruption_full="${_ss_git_command_name:-git} $*"
+        if ! _ss_git_empty_guard_git_command "$sub" "${stash_args[@]}"; then
             _ss_git_pre_opts=()
             _ss_git_corruption_full=""
             return 1

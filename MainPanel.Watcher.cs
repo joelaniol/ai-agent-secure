@@ -149,7 +149,7 @@ partial class MainPanel
         var recent = new List<string>();
         for (int i = 0; i < recentBlockedEntries.Count && i < 5; i++)
             recent.Add(recentBlockedEntries[i]);
-        bool hasGit = false, hasDelete = false, hasGitFlood = false, hasGitLeak = false, hasGitCorruption = false, hasWriteCorruption = false, hasHttpApi = false, hasPsUtf8 = false;
+        bool hasGit = false, hasDelete = false, hasGitFlood = false, hasGitLeak = false, hasGitCorruption = false, hasWriteCorruption = false, hasHttpApi = false, hasPsUtf8 = false, hasEmptyFile = false;
         string firstCmd = "", firstReason = "";
         foreach (var line in recent)
         {
@@ -178,6 +178,8 @@ partial class MainPanel
                 hasHttpApi = true;
             else if (string.Equals(field2, "ps-encoding", StringComparison.OrdinalIgnoreCase))
                 hasPsUtf8 = true;
+            else if (field2.StartsWith("empty-file", StringComparison.OrdinalIgnoreCase))
+                hasEmptyFile = true;
             else if (cmd.StartsWith("git ", StringComparison.OrdinalIgnoreCase)
                 || cmd.Equals("git", StringComparison.OrdinalIgnoreCase)
                 || cmd.StartsWith("Git", StringComparison.OrdinalIgnoreCase))
@@ -194,12 +196,14 @@ partial class MainPanel
 
         int distinctLayers = (hasGit ? 1 : 0) + (hasDelete ? 1 : 0)
             + (hasGitFlood ? 1 : 0) + (hasGitLeak ? 1 : 0) + (hasGitCorruption ? 1 : 0)
-            + (hasWriteCorruption ? 1 : 0) + (hasHttpApi ? 1 : 0) + (hasPsUtf8 ? 1 : 0);
+            + (hasWriteCorruption ? 1 : 0) + (hasHttpApi ? 1 : 0) + (hasPsUtf8 ? 1 : 0)
+            + (hasEmptyFile ? 1 : 0);
         string title;
         if (distinctLayers > 1) title = Loc.T("toast.multi");
         else if (hasGitFlood) title = Loc.T("toast.git_flood");
         else if (hasGitLeak) title = Loc.T("toast.git_leak");
         else if (hasGitCorruption) title = Loc.T("toast.git_corruption");
+        else if (hasEmptyFile) title = Loc.T("toast.empty_file");
         else if (hasWriteCorruption) title = Loc.T("toast.write_corruption");
         else if (hasHttpApi) title = Loc.T("toast.http_api");
         else if (hasPsUtf8) title = Loc.T("toast.ps_utf8");

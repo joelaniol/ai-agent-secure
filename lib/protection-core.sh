@@ -32,6 +32,10 @@ SHELL_SECURE_GIT_LEAK_TIMEOUT=60
 # Git corruption protection: block CRCRLF + forbidden control bytes before they
 # enter the index, a commit, or a push. The force env var is an audited one-shot bypass.
 SHELL_SECURE_CORRUPTION_PROTECT=true
+# Empty/zeroed file protection: block 0-byte and all-NUL files (truncation/crash
+# corruption the byte scanner skips) from entering Git on add/commit/push. Path
+# allowlist + EMPTY_FILE_FORCE one-shot bypass cover intentional empties.
+SHELL_SECURE_EMPTY_FILE_PROTECT=true
 # Local write audit for cat/tee redirections is opt-in because it buffers
 # audited streams. The git add/commit guard is the default fail-closed boundary.
 SHELL_SECURE_WRITE_AUDIT_PROTECT=false
@@ -104,6 +108,7 @@ _ss_load_config() {
     SHELL_SECURE_GIT_LEAK_PROTECT=true
     SHELL_SECURE_GIT_LEAK_TIMEOUT=60
     SHELL_SECURE_CORRUPTION_PROTECT=true
+    SHELL_SECURE_EMPTY_FILE_PROTECT=true
     SHELL_SECURE_WRITE_AUDIT_PROTECT=false
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
@@ -179,6 +184,11 @@ _ss_load_config() {
 
         if [[ "$trimmed" =~ ^SHELL_SECURE_CORRUPTION_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
             SHELL_SECURE_CORRUPTION_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$trimmed" =~ ^SHELL_SECURE_EMPTY_FILE_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_EMPTY_FILE_PROTECT="${BASH_REMATCH[1]}"
             continue
         fi
 
@@ -400,6 +410,10 @@ _ss_git_leak_protect_enabled() {
 
 _ss_corruption_protect_enabled() {
     _ss_runtime_enabled && [ "$SHELL_SECURE_CORRUPTION_PROTECT" = "true" ]
+}
+
+_ss_empty_file_protect_enabled() {
+    _ss_runtime_enabled && [ "$SHELL_SECURE_EMPTY_FILE_PROTECT" = "true" ]
 }
 
 _ss_write_audit_protect_enabled() {

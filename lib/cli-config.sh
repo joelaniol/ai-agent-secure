@@ -42,6 +42,7 @@ cfg_load() {
     SHELL_SECURE_GIT_LEAK_PROTECT=true
     SHELL_SECURE_GIT_LEAK_TIMEOUT=60
     SHELL_SECURE_CORRUPTION_PROTECT=true
+    SHELL_SECURE_EMPTY_FILE_PROTECT=true
     SHELL_SECURE_WRITE_AUDIT_PROTECT=false
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
@@ -111,6 +112,10 @@ cfg_load() {
             SHELL_SECURE_CORRUPTION_PROTECT="${BASH_REMATCH[1]}"
             continue
         fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_EMPTY_FILE_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_EMPTY_FILE_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
         if [[ "$trimmed" =~ ^SHELL_SECURE_WRITE_AUDIT_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
             SHELL_SECURE_WRITE_AUDIT_PROTECT="${BASH_REMATCH[1]}"
             continue
@@ -149,7 +154,7 @@ cfg_write() {
     tmpfile=$(mktemp)
     {
         echo "# AI Agent Secure Configuration (Shell-Secure core)"
-        echo "# ==========================="
+        echo "# CLI-written config: terse by design; see config/default.conf for documented keys."
         echo ""
         echo "SHELL_SECURE_ENABLED=$SHELL_SECURE_ENABLED"
         echo ""
@@ -157,28 +162,22 @@ cfg_write() {
         echo ""
         echo "SHELL_SECURE_GIT_PROTECT=${SHELL_SECURE_GIT_PROTECT:-true}"
         echo ""
-        echo "# Git flood protection: rate-limit network git calls (push/pull/fetch/clone/ls-remote)"
         echo "SHELL_SECURE_GIT_FLOOD_PROTECT=${SHELL_SECURE_GIT_FLOOD_PROTECT:-true}"
         echo "SHELL_SECURE_GIT_FLOOD_THRESHOLD=${SHELL_SECURE_GIT_FLOOD_THRESHOLD:-4}"
         echo "SHELL_SECURE_GIT_FLOOD_WINDOW=${SHELL_SECURE_GIT_FLOOD_WINDOW:-60}"
         echo ""
-        echo "# Git leak protection: warn before pushing likely secret or agent workspace files"
         echo "SHELL_SECURE_GIT_LEAK_PROTECT=${SHELL_SECURE_GIT_LEAK_PROTECT:-true}"
         echo "SHELL_SECURE_GIT_LEAK_TIMEOUT=${SHELL_SECURE_GIT_LEAK_TIMEOUT:-60}"
         echo ""
-        echo "# Git corruption protection: block CRCRLF + forbidden control bytes on add/commit/push"
         echo "SHELL_SECURE_CORRUPTION_PROTECT=${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
+        echo "SHELL_SECURE_EMPTY_FILE_PROTECT=${SHELL_SECURE_EMPTY_FILE_PROTECT:-true}"
         echo ""
-        echo "# Local write audit for cat/tee redirections: opt-in, buffers audited streams"
         echo "SHELL_SECURE_WRITE_AUDIT_PROTECT=${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false}"
         echo ""
-        echo "# HTTP API protection: block authenticated destructive curl calls"
         echo "SHELL_SECURE_HTTP_API_PROTECT=${SHELL_SECURE_HTTP_API_PROTECT:-true}"
         echo ""
-        echo "# PowerShell UTF-8 enforcement: block PS writes without explicit UTF-8 encoding"
         echo "SHELL_SECURE_PS_ENCODING_PROTECT=${SHELL_SECURE_PS_ENCODING_PROTECT:-true}"
         echo ""
-        echo "# GUI language preference (en/de); shell block diagnostics stay English/ASCII"
         echo "SHELL_SECURE_LANGUAGE=${SHELL_SECURE_LANGUAGE:-en}"
         echo ""
         printf 'SHELL_SECURE_LOG="%s"\n' "$(cfg_escape "$SHELL_SECURE_LOG")"

@@ -29,6 +29,9 @@ class ShellSecureConfig
     // Git corruption protection: block CRCRLF line-ending damage before add or
     // commit so huge whitespace-only diffs cannot enter history accidentally.
     public bool CorruptionProtect = true;
+    // Empty/zeroed file protection: block 0-byte and all-NUL files (truncation/crash
+    // corruption the byte scanner skips) from entering Git on add/commit/push.
+    public bool EmptyFileProtect = true;
     // Local write audit buffers cat/tee redirections, so it is opt-in. The Git
     // corruption guard remains the default fail-closed boundary.
     public bool WriteAuditProtect = false;
@@ -86,6 +89,7 @@ class ShellSecureConfig
         GitLeakProtect = true;
         GitLeakTimeout = 60;
         CorruptionProtect = true;
+        EmptyFileProtect = true;
         WriteAuditProtect = false;
         HttpApiProtect = true;
         PsEncodingProtect = true;
@@ -127,6 +131,8 @@ class ShellSecureConfig
             }
             var mcp = Regex.Match(text, @"SHELL_SECURE_CORRUPTION_PROTECT\s*=\s*(\w+)");
             if (mcp.Success) CorruptionProtect = mcp.Groups[1].Value == "true";
+            var mef = Regex.Match(text, @"SHELL_SECURE_EMPTY_FILE_PROTECT\s*=\s*(\w+)");
+            if (mef.Success) EmptyFileProtect = mef.Groups[1].Value == "true";
             var mwa = Regex.Match(text, @"SHELL_SECURE_WRITE_AUDIT_PROTECT\s*=\s*(\w+)");
             if (mwa.Success) WriteAuditProtect = mwa.Groups[1].Value == "true";
             var mha = Regex.Match(text, @"SHELL_SECURE_HTTP_API_PROTECT\s*=\s*(\w+)");
@@ -218,6 +224,7 @@ class ShellSecureConfig
             sb.AppendLine("SHELL_SECURE_GIT_LEAK_PROTECT=" + (GitLeakProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_GIT_LEAK_TIMEOUT=" + GitLeakTimeout);
             sb.AppendLine("SHELL_SECURE_CORRUPTION_PROTECT=" + (CorruptionProtect ? "true" : "false"));
+            sb.AppendLine("SHELL_SECURE_EMPTY_FILE_PROTECT=" + (EmptyFileProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_WRITE_AUDIT_PROTECT=" + (WriteAuditProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_HTTP_API_PROTECT=" + (HttpApiProtect ? "true" : "false"));
             sb.AppendLine("SHELL_SECURE_PS_ENCODING_PROTECT=" + (PsEncodingProtect ? "true" : "false"));

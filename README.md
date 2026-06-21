@@ -1,7 +1,7 @@
 # AI Agent Secure
 
 <!-- ai-agent-secure-version:start -->
-**Current version:** `1.1.8` | Build `20260620.191932` | Built `2026-06-20 19:19:32 UTC`
+**Current version:** `1.1.9` | Build `20260621.061915` | Built `2026-06-21 06:19:15 UTC`
 
 See [VERSION](VERSION) for the build manifest.
 <!-- ai-agent-secure-version:end -->
@@ -30,7 +30,7 @@ AI coding agents (Codex, Claude Code, etc.) routinely execute shell commands on 
 
 ## What gets intercepted?
 
-AI Agent Secure runs the **Shell-Secure protection core** with independent layers, each with its own toggle: `SHELL_SECURE_DELETE_PROTECT`, `SHELL_SECURE_GIT_PROTECT`, `SHELL_SECURE_GIT_LEAK_PROTECT`, `SHELL_SECURE_CORRUPTION_PROTECT`, `SHELL_SECURE_GIT_FLOOD_PROTECT`, `SHELL_SECURE_HTTP_API_PROTECT`, and `SHELL_SECURE_PS_ENCODING_PROTECT`.
+AI Agent Secure runs the **Shell-Secure protection core** with independent layers, each with its own toggle: `SHELL_SECURE_DELETE_PROTECT`, `SHELL_SECURE_GIT_PROTECT`, `SHELL_SECURE_GIT_LEAK_PROTECT`, `SHELL_SECURE_CORRUPTION_PROTECT`, `SHELL_SECURE_EMPTY_FILE_PROTECT`, `SHELL_SECURE_GIT_FLOOD_PROTECT`, `SHELL_SECURE_HTTP_API_PROTECT`, and `SHELL_SECURE_PS_ENCODING_PROTECT`.
 
 ### 1. Delete protection
 
@@ -237,7 +237,7 @@ Paths are normalized before comparison:
 
 - **Protected areas** — Configure folders, projects, or whole drives
 - **Whitelist** — Build artifacts like `node_modules`, `dist`, `.cache` etc. can still be deleted
-- **Per-category toggles** — Delete, Git, Git Leak, Git Corruption, Git Flood, HTTP/API, and PowerShell UTF-8 layers can be flipped independently of the master switch
+- **Per-category toggles** — Delete, Git, Git Leak, Git Corruption, Empty/Zeroed File, Git Flood, HTTP/API, and PowerShell UTF-8 layers can be flipped independently of the master switch
 - **Git stash guard** — Blocks captures on dirty worktrees and any mutation on existing stash entries; honours `git -C /path` and `--git-dir`
 - **Git reset --hard guard** — Blocks `git reset --hard` only when uncommitted tracked changes would be lost; clean trees and `--soft` / `--mixed` resets pass through
 - **Git clean guard** — Blocks `git clean -f` only when something would actually be removed; dry-runs (`-nfd`), interactive (`-i`), and no-op runs pass through
@@ -309,6 +309,9 @@ SHELL_SECURE_GIT_LEAK_TIMEOUT=60      # seconds to type "allow"
 # Git corruption protection: block CRCRLF + control bytes on add/commit/push.
 # Exempt verified vendored files via ~/.shell-secure/corruption-allowlist (content SHA256 per line).
 SHELL_SECURE_CORRUPTION_PROTECT=true
+# Empty/zeroed file protection: block 0-byte + all-NUL files on add/commit/push.
+# Legit empties (.gitkeep, __init__.py, ...) built-in; extend ~/.shell-secure/empty-file-allowlist.
+SHELL_SECURE_EMPTY_FILE_PROTECT=true
 # Optional early audit for cat/tee redirections; default off to avoid buffering broad shell pipelines
 SHELL_SECURE_WRITE_AUDIT_PROTECT=false
 # HTTP/API protection: authenticated destructive curl calls

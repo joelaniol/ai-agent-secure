@@ -303,6 +303,21 @@ partial class MainPanel
         stack.Children.Add(Sp(10));
 
         stack.Children.Add(BuildExpandableToggleRow(
+            "empty_file",
+            Loc.T("settings.empty_file.title"),
+            Loc.T("settings.empty_file.hint"),
+            Detail(
+                "settings.details.empty_file.blocked.new",
+                "settings.details.empty_file.blocked.truncate",
+                "settings.details.empty_file.blocked.push"),
+            Detail(
+                "settings.details.empty_file.allowed.legit",
+                "settings.details.empty_file.allowed.allowlist",
+                "settings.details.empty_file.allowed.force"),
+            out _emptyFileToggle, out _emptyFileDot, DoToggleEmptyFile));
+        stack.Children.Add(Sp(10));
+
+        stack.Children.Add(BuildExpandableToggleRow(
             "git_flood",
             Loc.T("settings.git_flood.title"),
             Loc.T("settings.git_flood.hint"),
@@ -412,6 +427,7 @@ partial class MainPanel
         SetToggleVisual(_gitToggle, _gitDot, _cfg.GitProtect);
         SetToggleVisual(_gitLeakToggle, _gitLeakDot, _cfg.GitLeakProtect);
         SetToggleVisual(_corruptionToggle, _corruptionDot, _cfg.CorruptionProtect);
+        SetToggleVisual(_emptyFileToggle, _emptyFileDot, _cfg.EmptyFileProtect);
         SetToggleVisual(_gitFloodToggle, _gitFloodDot, _cfg.GitFloodProtect);
         SetToggleVisual(_httpApiToggle, _httpApiDot, _cfg.HttpApiProtect);
         SetToggleVisual(_psEncodingToggle, _psEncodingDot, _cfg.PsEncodingProtect);

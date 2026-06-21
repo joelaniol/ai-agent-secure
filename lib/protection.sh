@@ -12,6 +12,7 @@
 #         protection-http.sh        - curl authenticated destructive API guard
 #         protection-git-leak.sh    - git push leak detector
 #         protection-git-corruption.sh - CRCRLF + control-byte add/commit/push detector
+#         protection-git-empty.sh   - 0-byte / all-NUL add/commit/push detector
 #         protection-write-audit.sh - terminal write CRCRLF audit
 #         protection-git-flood.sh   - network git call flood limiter
 #         protection-git.sh         - git destructive guards + dispatch
@@ -31,6 +32,7 @@ source "$_ss_loader_dir/protection-ps.sh"
 source "$_ss_loader_dir/protection-http.sh"
 source "$_ss_loader_dir/protection-git-leak.sh"
 source "$_ss_loader_dir/protection-git-corruption.sh"
+source "$_ss_loader_dir/protection-git-empty.sh"
 source "$_ss_loader_dir/protection-write-audit.sh"
 source "$_ss_loader_dir/protection-git-flood.sh"
 source "$_ss_loader_dir/protection-git.sh"

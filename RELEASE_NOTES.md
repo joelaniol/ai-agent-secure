@@ -1,3 +1,23 @@
+# AI Agent Secure v1.1.9
+
+## Features
+
+- Added **Empty / Zeroed File Protection** — a new independent layer (toggle `SHELL_SECURE_EMPTY_FILE_PROTECT`, own GUI toggle row, default on) that blocks **0-byte** and **all-NUL** files (every byte `0x00`, size > 0) from entering Git on `git add`, `git commit`, and the pre-push range scan. This is exactly the truncation/crash-corruption class the byte scanner deliberately skips (it ignores NUL/empty to avoid UTF-16 false positives), so a source/config file silently zeroed by a crash or a buggy tool — the PHPMailer-style "0-byte committed for weeks" incident — is now caught before it ships.
+- **Union detection policy:** a tracked file whose committed blob had real content but is now empty/NUL is flagged as **truncation** regardless of extension; a **new** empty/NUL file is flagged only when it has a content-mandatory extension (`.php/.js/.ts/.json/.css/.html/.sql/.py/...`). A file that was already empty before stays unflagged (no regression noise).
+- **Agent-facing block** in the same urgent stop-and-escalate spirit: it tells the agent the emptiness is suspect, to verify intent (`git show HEAD:<path> | wc -c`, `od -An -tx1`), and — if it is corruption — to halt the goal and any scheduled task/loop, restore the file (`git checkout HEAD -- <path>`), and inform the user.
+- **Path allowlist (not SHA):** empty files are not content-distinguishable (every 0-byte file shares one hash), so the exemption is path-based. Built-in legit-empties are always allowed (`.gitkeep`, `.keep`, `__init__.py`, `py.typed`, `.nojekyll`, `gc.properties`, `temp/`, `logs/`); extend with `~/.shell-secure/empty-file-allowlist` (one path/glob per line) or a reviewed one-shot `SHELL_SECURE_EMPTY_FILE_FORCE=1`.
+
+## Notes
+
+- Lives in its own slice `lib/protection-git-empty.sh`; the GUI embeds it like the other guards. Localization was split (German strings moved to `Localization.De.cs` as a `partial class Loc`) to stay within the 500-line GUI source limit.
+
+## Verification
+
+- New `tests/protection-git-empty-selftest.sh` (in the gate): 0-byte + all-NUL block, legit empties/non-mandatory extensions allowed, truncation on add and `commit -a`, pre-existing empty not re-flagged, pre-push range block, sidecar-glob allow, force + audit, toggle-off pass-through.
+- `run-quality.ps1 -BuildGui` full gate green; GUI rebuilt with embedded-script round-trip OK. Isolated end-to-end battery against the built EXE's embedded scripts also green.
+
+---
+
 # AI Agent Secure v1.1.8
 
 ## Features

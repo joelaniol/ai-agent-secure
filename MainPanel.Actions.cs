@@ -72,6 +72,14 @@ partial class MainPanel
         RefreshAll();
     }
 
+    void DoToggleEmptyFile()
+    {
+        if (!EnsureInstalledForEditing(Loc.T("action.toggle_empty_file"))) return;
+        _cfg.EmptyFileProtect = !_cfg.EmptyFileProtect;
+        if (!SaveConfig()) return;
+        RefreshAll();
+    }
+
     void DoCommitGitFloodThreshold(int value)
     {
         if (!EnsureInstalledForEditing(Loc.T("action.change_flood_threshold"))) return;

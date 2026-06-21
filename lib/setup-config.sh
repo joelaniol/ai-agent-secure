@@ -42,6 +42,7 @@ cfg_load() {
     SHELL_SECURE_GIT_LEAK_PROTECT=true
     SHELL_SECURE_GIT_LEAK_TIMEOUT=60
     SHELL_SECURE_CORRUPTION_PROTECT=true
+    SHELL_SECURE_EMPTY_FILE_PROTECT=true
     SHELL_SECURE_WRITE_AUDIT_PROTECT=false
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
@@ -111,6 +112,10 @@ cfg_load() {
             SHELL_SECURE_CORRUPTION_PROTECT="${BASH_REMATCH[1]}"
             continue
         fi
+        if [[ "$trimmed" =~ ^SHELL_SECURE_EMPTY_FILE_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
+            SHELL_SECURE_EMPTY_FILE_PROTECT="${BASH_REMATCH[1]}"
+            continue
+        fi
         if [[ "$trimmed" =~ ^SHELL_SECURE_WRITE_AUDIT_PROTECT[[:space:]]*=[[:space:]]*(true|false)$ ]]; then
             SHELL_SECURE_WRITE_AUDIT_PROTECT="${BASH_REMATCH[1]}"
             continue
@@ -171,6 +176,9 @@ cfg_write() {
         echo ""
         echo "# Git corruption protection: block CRCRLF + forbidden control bytes on add/commit/push"
         echo "SHELL_SECURE_CORRUPTION_PROTECT=${SHELL_SECURE_CORRUPTION_PROTECT:-true}"
+        echo ""
+        echo "# Empty/zeroed file protection: block 0-byte + all-NUL files on add/commit/push"
+        echo "SHELL_SECURE_EMPTY_FILE_PROTECT=${SHELL_SECURE_EMPTY_FILE_PROTECT:-true}"
         echo ""
         echo "# Local write audit for cat/tee redirections: opt-in, buffers audited streams"
         echo "SHELL_SECURE_WRITE_AUDIT_PROTECT=${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false}"
