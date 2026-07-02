@@ -1,8 +1,10 @@
 # Read this file first when changing the env wrapper.
-# Purpose: catch "env [VAR=val ...] git/curl ..." spellings so wrappers still
-#          trigger when an agent tries to route around them via env.
-# Scope: relies on the git()/git.exe() and curl()/curl.exe() wrappers plus the
-#        toggle helpers from protection-core.sh.
+# Purpose: catch "env [VAR=val ...] <tool> ..." spellings so the protected
+#          wrappers still trigger when an agent tries to route around them via
+#          env. Covers the delete (rm/cmd), git, curl and PowerShell wrappers.
+# Scope: relies on the rm()/cmd()/cmd.exe(), git()/git.exe(), curl()/curl.exe()
+#        and powershell() (plus *.exe/pwsh) wrappers from the delete, git, http
+#        and ps slices, plus the toggle helpers from protection-core.sh.
 
 _ss_is_env_assignment() {
     [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]
@@ -11,6 +13,9 @@ _ss_is_env_assignment() {
 # Agents and tools sometimes spell executables as *.exe or route them through
 # "env". Catch the simple env forms here; complex env options fall back
 # unchanged because emulating GNU env fully would be more dangerous.
+# env_cmd_lower is already lower-cased, so a single lower-case case arm covers
+# every spelling variant (Powershell.exe, RM, Cmd, ...); the original spelling
+# in $env_cmd is preserved for the block diagnostics.
 env() {
     local -a original_args=("$@")
     local -a env_assignments=()
@@ -42,6 +47,33 @@ env() {
         env_cmd_lower="${env_cmd,,}"
         shift
         case "$env_cmd_lower" in
+            rm)
+                (
+                    for assignment in "${env_assignments[@]}"; do
+                        export "$assignment"
+                    done
+                    rm "$@"
+                )
+                return $?
+                ;;
+            cmd|cmd.exe)
+                (
+                    for assignment in "${env_assignments[@]}"; do
+                        export "$assignment"
+                    done
+                    cmd "$@"
+                )
+                return $?
+                ;;
+            powershell|powershell.exe|pwsh|pwsh.exe)
+                (
+                    for assignment in "${env_assignments[@]}"; do
+                        export "$assignment"
+                    done
+                    _ss_powershell_command_name="env $env_cmd" powershell "$@"
+                )
+                return $?
+                ;;
             git|git.exe)
                 (
                     for assignment in "${env_assignments[@]}"; do
@@ -51,7 +83,7 @@ env() {
                 )
                 return $?
                 ;;
-            curl|Curl|CURL|curl.exe|Curl.exe|CURL.exe)
+            curl|curl.exe)
                 (
                     for assignment in "${env_assignments[@]}"; do
                         export "$assignment"

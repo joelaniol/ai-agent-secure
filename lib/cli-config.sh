@@ -47,7 +47,8 @@ cfg_load() {
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
-    SHELL_SECURE_LOG="$HOME/.shell-secure/blocked.log"
+    # Single quotes: keep the portable "$HOME" placeholder literal (see setup-config.sh).
+    SHELL_SECURE_LOG='$HOME/.shell-secure/blocked.log'
     SHELL_SECURE_PROTECTED_DIRS=()
     SHELL_SECURE_SAFE_TARGETS=()
 
@@ -151,15 +152,16 @@ cfg_write() {
     local config="$1"
     local tmpfile dir safe
 
+    # Atomic write via mv; RETURN trap removes the temp file on a set -e abort,
+    # reset after mv so it cannot re-fire with an unset $tmpfile under set -u.
     tmpfile=$(mktemp)
+    trap 'command rm -f "$tmpfile"' RETURN
     {
         echo "# AI Agent Secure Configuration (Shell-Secure core)"
         echo "# CLI-written config: terse by design; see config/default.conf for documented keys."
         echo ""
         echo "SHELL_SECURE_ENABLED=$SHELL_SECURE_ENABLED"
-        echo ""
         echo "SHELL_SECURE_DELETE_PROTECT=${SHELL_SECURE_DELETE_PROTECT:-true}"
-        echo ""
         echo "SHELL_SECURE_GIT_PROTECT=${SHELL_SECURE_GIT_PROTECT:-true}"
         echo ""
         echo "SHELL_SECURE_GIT_FLOOD_PROTECT=${SHELL_SECURE_GIT_FLOOD_PROTECT:-true}"
@@ -173,7 +175,6 @@ cfg_write() {
         echo "SHELL_SECURE_EMPTY_FILE_PROTECT=${SHELL_SECURE_EMPTY_FILE_PROTECT:-true}"
         echo ""
         echo "SHELL_SECURE_WRITE_AUDIT_PROTECT=${SHELL_SECURE_WRITE_AUDIT_PROTECT:-false}"
-        echo ""
         echo "SHELL_SECURE_HTTP_API_PROTECT=${SHELL_SECURE_HTTP_API_PROTECT:-true}"
         echo ""
         echo "SHELL_SECURE_PS_ENCODING_PROTECT=${SHELL_SECURE_PS_ENCODING_PROTECT:-true}"
@@ -195,8 +196,8 @@ cfg_write() {
         done
         echo ")"
     } > "$tmpfile"
-    cp "$tmpfile" "$config"
-    rm -f "$tmpfile"
+    mv "$tmpfile" "$config"
+    trap - RETURN
 }
 
 normalize_path_key() {

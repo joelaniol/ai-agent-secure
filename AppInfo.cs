@@ -6,7 +6,7 @@ static class AppInfo
 {
     public const string ProductName = "AI Agent Secure";
     public const string CoreName = "Shell-Secure";
-    public const string Version = "1.1.9";
+    public const string Version = "1.1.10";
     public const string Author = "Joel Aniol";
     public const string ProjectUrl = "https://github.com/joelaniol/ai-agent-secure";
 

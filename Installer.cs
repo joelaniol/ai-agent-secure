@@ -324,7 +324,12 @@ static partial class Installer
                         if (line.Contains(ME)) { ib = false; continue; }
                         if (!ib) cl.Add(line);
                     }
-                    File.WriteAllText(Rc, string.Join("\n", cl).Replace("\r\n", "\n"), new UTF8Encoding(false));
+                    // Preserve a terminating newline: File.ReadAllLines drops
+                    // the trailing separator, so a plain Join would leave the
+                    // .bashrc without a final newline (git diff --check flags it).
+                    string cleaned = string.Join("\n", cl).Replace("\r\n", "\n");
+                    if (cleaned.Length > 0 && !cleaned.EndsWith("\n")) cleaned += "\n";
+                    File.WriteAllText(Rc, cleaned, new UTF8Encoding(false));
                 }
             }
             string lp = Path.Combine(Dir, "blocked.log");
@@ -343,7 +348,18 @@ static partial class Installer
             }
             SetAutostart(false);
             ShortcutHelper.RemoveStartMenuShortcut();
-            if (Directory.Exists(Dir)) Directory.Delete(Dir, true);
+            if (Directory.Exists(Dir))
+            {
+                // A tool that guards against unintended recursive deletes must
+                // not recurse through a symlink/junction: if ~/.shell-secure was
+                // replaced by a reparse point, delete only the link, never the
+                // target's contents.
+                var di = new DirectoryInfo(Dir);
+                if ((di.Attributes & FileAttributes.ReparsePoint) != 0)
+                    di.Delete(false);
+                else
+                    Directory.Delete(Dir, true);
+            }
             l.AppendLine(Loc.T("installer.removed"));
         }
         catch (Exception ex) { l.AppendLine(Loc.F("installer.error_prefix", ex.Message)); }

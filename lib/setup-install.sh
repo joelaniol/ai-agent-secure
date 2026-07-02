@@ -188,10 +188,10 @@ do_uninstall() {
         local previous_env
         previous_env=$(read_previous_bash_env)
         if [ -n "$previous_env" ]; then
-            powershell -c "[Environment]::SetEnvironmentVariable('BASH_ENV', $(powershell_quote "$previous_env"), 'User')" 2>/dev/null
+            powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('BASH_ENV', $(powershell_quote "$previous_env"), 'User')" 2>/dev/null || true
             echo -e "  ${G}+${NC} Vorheriges BASH_ENV wiederhergestellt"
         else
-            powershell -c "[Environment]::SetEnvironmentVariable('BASH_ENV', \$null, 'User')" 2>/dev/null
+            powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('BASH_ENV', \$null, 'User')" 2>/dev/null || true
             echo -e "  ${G}+${NC} BASH_ENV Umgebungsvariable entfernt"
         fi
     fi

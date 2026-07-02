@@ -106,6 +106,44 @@ do_whitelist() {
     info "Neue Shell öffnen oder: source ~/.bashrc"
 }
 
+do_unwhitelist() {
+    local name="$1"
+    local key
+    local -a kept=()
+    if [ -z "$name" ]; then
+        err "Name angeben: shell-secure unwhitelist <verzeichnisname>"
+        return 1
+    fi
+
+    local config="$INSTALL_DIR/config.conf"
+    if [ ! -f "$config" ]; then
+        err "Nicht installiert."
+        return 1
+    fi
+
+    cfg_load "$config" || {
+        err "Konfiguration konnte nicht gelesen werden."
+        return 1
+    }
+
+    key=$(normalize_name_key "$name")
+    for safe in "${SHELL_SECURE_SAFE_TARGETS[@]}"; do
+        if [ "$(normalize_name_key "$safe")" != "$key" ]; then
+            kept+=("$safe")
+        fi
+    done
+
+    if [ ${#kept[@]} -eq ${#SHELL_SECURE_SAFE_TARGETS[@]} ]; then
+        warn "Nicht in der Whitelist: $name"
+        return 1
+    fi
+
+    SHELL_SECURE_SAFE_TARGETS=("${kept[@]}")
+    cfg_write "$config"
+    ok "Whitelist-Eintrag entfernt: $name"
+    info "Neue Shell öffnen oder: source ~/.bashrc"
+}
+
 do_enable() {
     local config="$INSTALL_DIR/config.conf"
     if [ ! -f "$config" ]; then

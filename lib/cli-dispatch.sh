@@ -21,6 +21,7 @@ do_help() {
     echo "    add <pfad>        Geschütztes Verzeichnis hinzufügen"
     echo "    remove <pfad>     Geschütztes Verzeichnis entfernen"
     echo "    whitelist <name>  Verzeichnisname zur Whitelist hinzufügen"
+    echo "    unwhitelist <name> Verzeichnisname aus der Whitelist entfernen"
     echo "    log [n]           Letzte n blockierte Operationen (Standard: 20)"
     echo ""
     echo "    flood <sub>       Git-Flood-Schutz steuern:"
@@ -70,6 +71,7 @@ main() {
         add)        do_add "${1:-}" ;;
         remove)     do_remove_dir "${1:-}" ;;
         whitelist)  do_whitelist "${1:-}" ;;
+        unwhitelist) do_unwhitelist "${1:-}" ;;
         flood)      do_flood "${1:-}" "${2:-}" ;;
         git-leak)   do_git_leak "${1:-}" "${2:-}" ;;
         corruption) do_corruption "${1:-}" ;;

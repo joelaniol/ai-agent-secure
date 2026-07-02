@@ -158,23 +158,29 @@ do_manage_whitelist() {
         echo "  ────────────────────────────────────"
         echo ""
 
-        local i=1
-        local col=0
-        local line_buf=""
-        for safe in "${SHELL_SECURE_SAFE_TARGETS[@]}"; do
-            line_buf+=$(printf "  ${D}%-18s${NC}" "$safe")
-            ((col++))
-            if [ $col -ge 3 ]; then
-                echo -e "$line_buf"
-                line_buf=""
-                col=0
-            fi
-        done
-        [ -n "$line_buf" ] && echo -e "$line_buf"
+        if [ ${#SHELL_SECURE_SAFE_TARGETS[@]} -eq 0 ]; then
+            echo -e "  ${D}Keine Einträge in der Whitelist.${NC}"
+        else
+            local i=1
+            local col=0
+            local line_buf=""
+            for safe in "${SHELL_SECURE_SAFE_TARGETS[@]}"; do
+                line_buf+=$(printf "  ${C}%2d.${NC} ${D}%-16s${NC}" "$i" "$safe")
+                ((i++))
+                ((col++))
+                if [ $col -ge 3 ]; then
+                    echo -e "$line_buf"
+                    line_buf=""
+                    col=0
+                fi
+            done
+            [ -n "$line_buf" ] && echo -e "$line_buf"
+        fi
 
         echo ""
         echo "  ────────────────────────────────────"
         echo -e "  ${B}[a]${NC}  Name hinzufügen"
+        echo -e "  ${B}[d]${NC}  Name entfernen"
         echo -e "  ${B}[z]${NC}  Zurück"
         echo ""
         echo -ne "  Auswahl: "
@@ -201,6 +207,27 @@ do_manage_whitelist() {
                     echo -e "  ${Y}Hinweis:${NC} source ~/.bashrc"
                     press_enter
                 fi
+                ;;
+            d|D)
+                if [ ${#SHELL_SECURE_SAFE_TARGETS[@]} -eq 0 ]; then
+                    echo -e "  ${D}Keine Einträge vorhanden.${NC}"
+                    press_enter
+                    continue
+                fi
+                echo -ne "  Nummer des zu entfernenden Eintrags: "
+                read -r num
+                if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -gt ${#SHELL_SECURE_SAFE_TARGETS[@]} ]; then
+                    echo -e "  ${R}Ungültige Nummer.${NC}"
+                    press_enter
+                    continue
+                fi
+                local target="${SHELL_SECURE_SAFE_TARGETS[$((num-1))]}"
+                unset 'SHELL_SECURE_SAFE_TARGETS[$((num-1))]'
+                SHELL_SECURE_SAFE_TARGETS=("${SHELL_SECURE_SAFE_TARGETS[@]}")
+                cfg_write "$INSTALL_DIR/config.conf"
+                echo -e "  ${G}-${NC} Entfernt: ${B}$target${NC}"
+                echo -e "  ${Y}Hinweis:${NC} Neue Shell öffnen oder: ${C}source ~/.bashrc${NC}"
+                press_enter
                 ;;
             z|Z) return ;;
             *) ;;

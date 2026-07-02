@@ -1,3 +1,25 @@
+# AI Agent Secure v1.1.10
+
+## Security
+
+- **Closed an `env` protection bypass.** The `env()` wrapper exists specifically to catch `env [VAR=val ...] <tool> ...` spellings that try to route around the protected wrappers, but it only covered `git` and `curl`. `rm`, `cmd`/`cmd.exe` and `powershell`/`pwsh` fell through to the real binaries, so `env rm -rf <protected-path>` deleted a protected directory from a loaded Bash session **without a block and without a log entry** (and `env powershell ... Remove-Item -Recurse` bypassed the PowerShell wrapper the same way). Unlike the documented `command rm ...` escape hatch, this was an unintended gap in the very layer meant to catch such routing. The wrapper now also routes `rm`, `cmd`/`cmd.exe` and `powershell`/`powershell.exe`/`pwsh`/`pwsh.exe` through their guards; matching is done against the already-lower-cased command so every spelling variant (`RM`, `Powershell.exe`, ...) is covered while the original spelling is preserved for block diagnostics.
+
+## Fixes
+
+- **Whitelist entries can now be removed.** `SHELL_SECURE_SAFE_TARGETS` was add-only in both entry points, yet a stray safe-target entry lifts protection for that basename (a direct protection bypass) and could previously only be corrected by hand-editing the config. Added the CLI command `unwhitelist <name>` (case-insensitive) and a `[d] remove name` action in the setup TUI, mirroring the protected-directory remove flow.
+- **Setup uninstall no longer aborts in a half-state.** The setup uninstaller called `powershell -c` without `|| true`/`-NoProfile`; under `set -euo pipefail` a failing `powershell` (not on PATH, broken profile) aborted the whole uninstall before `~/.shell-secure/` was removed. Aligned with the robust CLI form.
+- **Portable log path preserved on CLI config rewrites.** The CLI config parser initialized the `SHELL_SECURE_LOG` default as an already-expanded absolute path instead of the portable `$HOME` placeholder; a rewrite of a config missing that line would bake in an absolute path. Aligned with the setup parser so the placeholder round-trips.
+- **Atomic, leak-free config writes.** Both `cfg_write` implementations used `mktemp` → `cp` → `rm`; a failed `cp` under `set -e` left the temp file (containing every protected path) behind in `TMPDIR` and could leave a half-written config. They now use a cleanup `trap` plus an atomic `mv`.
+- **GUI build no longer emits a UTF-8 BOM** for the generated `EmbeddedScripts.cs` (Windows PowerShell `Set-Content -Encoding UTF8` adds one); switched to a BOM-free `WriteAllText`.
+- **Installer uninstall hardening.** The `.bashrc` marker-block removal now keeps a terminating newline, and the `~/.shell-secure/` removal checks for a reparse point first and deletes only the link (never the target contents) if the directory was replaced by a symlink/junction — fitting for a tool whose purpose is guarding against unintended recursive deletes.
+
+## Verification
+
+- New `tests/protection-env-selftest.sh` (registered in the gate): `env rm -rf` and `env FOO=bar rm -rf` on a protected tree block, uppercase `env RM` blocks, `env rm <single loose file>` stays allowed, and `env powershell ... Remove-Item -Recurse` is routed through the wrapper. `tests/cli-config-selftest.sh` extended with an `unwhitelist` round-trip.
+- `run-quality.ps1 -BuildGui` full gate green (`Quality test OK.`, `Embedded-Script-Checks: OK`); GUI rebuilt with embedded-script round-trip OK.
+
+---
+
 # AI Agent Secure v1.1.9
 
 ## Features

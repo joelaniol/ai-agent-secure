@@ -47,6 +47,9 @@ cfg_load() {
     SHELL_SECURE_HTTP_API_PROTECT=true
     SHELL_SECURE_PS_ENCODING_PROTECT=true
     SHELL_SECURE_LANGUAGE=en
+    # Single quotes on purpose: keep the portable "$HOME" placeholder literal so
+    # cfg_write persists it verbatim; the runtime expands it at read time. Must
+    # stay in sync with cli-config.sh so both entry points round-trip alike.
     SHELL_SECURE_LOG='$HOME/.shell-secure/blocked.log'
     SHELL_SECURE_PROTECTED_DIRS=()
     SHELL_SECURE_SAFE_TARGETS=()
@@ -151,7 +154,11 @@ cfg_write() {
     local config="$1"
     local tmpfile dir safe
 
+    # Write to a temp file, then replace atomically with mv. The RETURN trap
+    # removes the temp file even when set -e aborts on a failed write, so a
+    # config containing every protected path is never left behind in TMPDIR.
     tmpfile=$(mktemp)
+    trap 'command rm -f "$tmpfile"' RETURN
     {
         echo "# AI Agent Secure Configuration (Shell-Secure core)"
         echo "# ==========================="
@@ -212,8 +219,8 @@ cfg_write() {
         done
         echo ")"
     } > "$tmpfile"
-    cp "$tmpfile" "$config"
-    rm -f "$tmpfile"
+    mv "$tmpfile" "$config"
+    trap - RETURN
 }
 
 normalize_path_key() {

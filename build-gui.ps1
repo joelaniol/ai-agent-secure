@@ -400,7 +400,11 @@ fi
 }
 "@
 
-Set-Content -Path "EmbeddedScripts.cs" -Value $embedded -Encoding UTF8
+# Write without BOM: Set-Content -Encoding UTF8 emits a UTF-8 BOM on Windows
+# PowerShell 5.1, which would make this generated source the one .cs file that
+# violates the source-encoding gate (it is only skipped because the finally
+# block deletes it right after compile). Reuse the no-BOM encoder from above.
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) "EmbeddedScripts.cs"), $embedded, $utf8NoBomEncoding)
 
 # ── Prepare dist folder and build target ──
 $distDir = Join-Path $PSScriptRoot "dist"
